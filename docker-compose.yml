@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kreativicon_app
+    restart: always
+    ports:
+      - "80:80"
+      - "3000:3000"
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=kreativicon_db
+      - DB_USERNAME=kreativicon_user
+      - DB_PASSWORD=secretpassword
+      - MAIL_MAILER=smtp
+      - MAIL_HOST=mailpit
+      - MAIL_PORT=1025
+    depends_on:
+      - postgres
+      - mailpit
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: kreativicon_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: kreativicon_db
+      POSTGRES_USER: kreativicon_user
+      POSTGRES_PASSWORD: secretpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  mailpit:
+    image: axllent/mailpit
+    container_name: kreativicon_mailpit
+    restart: always
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+volumes:
+  pgdata:

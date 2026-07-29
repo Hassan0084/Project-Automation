@@ -1,0 +1,62 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Kreativicon ISP Order & Project Management REST API",
+    "version": "1.0.0",
+    "description": "API Specification for Kreativicon ISP Order Management System"
+  },
+  "servers": [
+    {
+      "url": "http://localhost/api/v1",
+      "description": "Production API Server"
+    }
+  ],
+  "paths": {
+    "/orders": {
+      "get": {
+        "summary": "List all customer orders",
+        "parameters": [
+          { "name": "region", "in": "query", "schema": { "type": "string" } },
+          { "name": "city", "in": "query", "schema": { "type": "string" } },
+          { "name": "bw", "in": "query", "schema": { "type": "string" } },
+          { "name": "status", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Array of Order objects" }
+        }
+      },
+      "post": {
+        "summary": "Create a new ISP order",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ki_id": { "type": "string" },
+                  "customer_name": { "type": "string" },
+                  "order_number": { "type": "string" },
+                  "region": { "type": "string" },
+                  "city": { "type": "string" },
+                  "bw": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Order created successfully" }
+        }
+      }
+    },
+    "/dashboard/summary": {
+      "get": {
+        "summary": "Get Executive Dashboard Metrics & Calculations",
+        "responses": {
+          "200": { "description": "Summary Object with active, completed, region, city, and bandwidth metrics" }
+        }
+      }
+    }
+  }
+}
