@@ -87,6 +87,35 @@
   <div id="root"></div>
 
   <script type="text/babel">
+    // Helper function to format raw Excel serial dates (e.g. 46216 -> 2026-07-13) or standard dates
+    function formatExcelDate(val) {
+      if (val === null || val === undefined || val === '' || val === '—' || val === 'null' || val === 'undefined') return '—';
+      const str = String(val).trim();
+      if (!str || str === '—') return '—';
+
+      // Excel serial number (e.g. 46216, 46231, 46232)
+      if (!isNaN(str) && !str.includes('-') && !str.includes('/')) {
+        const num = parseFloat(str);
+        if (num > 10000 && num < 100000) {
+          const d = new Date(Math.round((num - 25569) * 86400 * 1000));
+          if (!isNaN(d.getTime())) {
+            return d.toISOString().split('T')[0];
+          }
+        }
+      }
+
+      // Handle standard date strings or slash dates (e.g. 2026-07-13 or 07/13/2026)
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        const yr = d.getFullYear();
+        if (yr > 1990 && yr < 2100) {
+          return d.toISOString().split('T')[0];
+        }
+      }
+
+      return str;
+    }
+
     const INITIAL_ORDERS = [
       { id: 'ord-1', sl_no: '1', ki_id: 'KIC-001-MW-MEL-STC', order_received: '2026-07-02', region: 'CENTRAL', city: 'QASSIM', circuit_id: 'QASSIM-RIYADH DIAS11003', order_number: 'I14977452579171', customer_name: 'Fosam Limited Company', customer_contact: 'ابتسام اليامي - 553584472', bw: '20MBPs', los_performed: '2026-07-05', los_status: 'CLOS', los_id: '601-22-000', cwo_date: '2026-07-13', order_status: 'Under MW Installation', assigned_to: 'Haroon', is_cancelled: false, priority: 'High', remarks: 'Dispatched MW team for site installation.' },
       { id: 'ord-2', sl_no: '2', ki_id: 'KIC-002-MW-MEL-STC', order_received: '2026-07-02', region: 'CENTRAL', city: 'RIYADHDST', circuit_id: 'RIYADHDST-RIYADH DIAS11019', order_number: 'I14977108106221', customer_name: 'Bunyan for Industry CompanySole Partnership', customer_contact: 'وليد الغامدي - 565577234', bw: '25MBPs', los_performed: '2026-07-05', los_status: 'CLOS', los_id: 'ZAKA160', cwo_date: '2026-07-13', installation_start: '2026-07-23', installation_complete: '2026-07-25', delivery_date: '2026-07-25', order_status: 'Delivered /CR Pending', assigned_to: 'Haroon', is_cancelled: false, priority: 'Medium' },
@@ -115,7 +144,7 @@
       { id: 'usr-4', name: 'Viewer User', role: 'Viewer', email: 'viewer@kreativicon.com', pass: 'viewer123' }
     ];
 
-    // ── ExcelTab Component (Smart Deduplicating & Merging Excel Parser) ──
+    // ── ExcelTab Component (Smart Deduplicating & Merging Excel Parser with Date Formatting) ──
     function ExcelTab({ orders, setOrders, isSuperAdmin }) {
       const [excelStatus, setExcelStatus] = React.useState(null);
       const fileInputRef = React.useRef(null);
@@ -141,7 +170,7 @@
               return;
             }
 
-            // Standardize raw Excel row into system Order object
+            // Standardize raw Excel row into system Order object with clean Date conversion
             const parsedRows = rows.map((row, i) => {
               const get = (...keys) => {
                 for (const k of keys) {
@@ -158,7 +187,7 @@
               return {
                 sl_no: get('sl','sno','serial') || String(i + 1),
                 ki_id: ki_id,
-                order_received: get('order received','orderreceived','date','received') || new Date().toISOString().split('T')[0],
+                order_received: formatExcelDate(get('order received','orderreceived','date','received') || new Date().toISOString().split('T')[0]),
                 region: (get('region') || 'CENTRAL').toUpperCase(),
                 city: (get('city','location') || 'RIYADH').toUpperCase(),
                 customer_name: get('customer name','customername','customer','client') || 'Enterprise Client',
@@ -168,10 +197,10 @@
                 order_number: order_number,
                 los_status: get('los status','losstatus','los') || 'CLOS',
                 los_id: get('los id','losid'),
-                cwo_date: get('cwo date','cwodate','cwo'),
-                installation_start: get('installation start date','installationstart','start date','installation start'),
-                installation_complete: get('installation complete date','installationcomplete','complete date','installation complete'),
-                delivery_date: get('delivery date','deliverydate','delivery'),
+                cwo_date: formatExcelDate(get('cwo date','cwodate','cwo')),
+                installation_start: formatExcelDate(get('installation start date','installationstart','start date','installation start')),
+                installation_complete: formatExcelDate(get('installation complete date','installationcomplete','complete date','installation complete')),
+                delivery_date: formatExcelDate(get('delivery date','deliverydate','delivery')),
                 order_status: get('active status','workflow status','status','orderstatus') || 'Under MW Installation',
                 assigned_to: get('engineer','assigned','assignedto') || 'Unassigned',
                 priority: get('priority') || 'Medium',
@@ -180,27 +209,24 @@
               };
             });
 
-            // SMART MERGE & DEDUPLICATION ENGINE:
-            // Match incoming Excel rows with existing orders dataset by ki_id or circuit_id
+            // SMART MERGE & DEDUPLICATION ENGINE
             let updatedCount = 0;
             let addedCount = 0;
             let currentList = [...orders];
 
             parsedRows.forEach((row) => {
-              // Find existing order index by ki_id or circuit_id match
               const existingIdx = currentList.findIndex(o => 
                 (o.ki_id && row.ki_id && o.ki_id.toLowerCase().trim() === row.ki_id.toLowerCase().trim()) ||
                 (o.circuit_id && row.circuit_id && o.circuit_id.toLowerCase().trim() === row.circuit_id.toLowerCase().trim())
               );
 
               if (existingIdx !== -1) {
-                // UPDATE EVERY COLUMN WITH NEW DATA FROM EXCEL
                 const existing = currentList[existingIdx];
                 currentList[existingIdx] = {
                   ...existing,
                   sl_no: row.sl_no || existing.sl_no,
                   ki_id: row.ki_id || existing.ki_id,
-                  order_received: row.order_received || existing.order_received,
+                  order_received: formatExcelDate(row.order_received || existing.order_received),
                   region: row.region || existing.region,
                   city: row.city || existing.city,
                   customer_name: row.customer_name || existing.customer_name,
@@ -210,10 +236,10 @@
                   order_number: row.order_number || existing.order_number,
                   los_status: row.los_status || existing.los_status,
                   los_id: row.los_id || existing.los_id,
-                  cwo_date: row.cwo_date || existing.cwo_date,
-                  installation_start: row.installation_start || existing.installation_start,
-                  installation_complete: row.installation_complete || existing.installation_complete,
-                  delivery_date: row.delivery_date || existing.delivery_date,
+                  cwo_date: formatExcelDate(row.cwo_date || existing.cwo_date),
+                  installation_start: formatExcelDate(row.installation_start || existing.installation_start),
+                  installation_complete: formatExcelDate(row.installation_complete || existing.installation_complete),
+                  delivery_date: formatExcelDate(row.delivery_date || existing.delivery_date),
                   order_status: row.order_status || existing.order_status,
                   assigned_to: row.assigned_to || existing.assigned_to,
                   remarks: row.remarks || existing.remarks,
@@ -221,7 +247,6 @@
                 };
                 updatedCount++;
               } else {
-                // ADD MISSING CIRCUIT TO SYSTEM
                 currentList.push({
                   ...row,
                   id: 'ord-xl-' + Date.now() + '-' + Math.random().toString(36).substring(2,6)
@@ -230,7 +255,7 @@
               }
             });
 
-            // FINAL DEDUPLICATION (by ki_id)
+            // FINAL DEDUPLICATION
             const uniqueMap = new Map();
             currentList.forEach(item => {
               const key = item.ki_id ? item.ki_id.toLowerCase().trim() : item.id;
@@ -238,11 +263,10 @@
             });
             const finalList = Array.from(uniqueMap.values());
 
-            // Save to React State & LocalStorage for instant Executive Dashboard recalculation
             setOrders(finalList);
             setExcelStatus({
               type: 'success',
-              msg: `✅ Excel Sheet Synced Successfully! ${updatedCount} existing circuits updated, ${addedCount} missing circuits added. Total database size: ${finalList.length} circuits. Executive Dashboard updated live!`
+              msg: `✅ Excel Sheet Synced Successfully! ${updatedCount} existing circuits updated, ${addedCount} missing circuits added. All Excel date codes formatted cleanly to YYYY-MM-DD. Total database size: ${finalList.length} circuits.`
             });
 
           } catch (err) {
@@ -257,7 +281,7 @@
 
       const handleExportCSV = () => {
         const headers = ['SL','KI ID','Order Received','Region','City','Customer Name','BW','LOS Status','CWO Date','Installation Start Date','Installation Complete Date','Delivery Date','Active Status','Engineer','Circuit ID','Order Number','Remarks'];
-        const rows = orders.map(o => [o.sl_no,o.ki_id,o.order_received,o.region,o.city,o.customer_name,o.bw,o.los_status,o.cwo_date,o.installation_start,o.installation_complete,o.delivery_date,o.order_status,o.assigned_to,o.circuit_id,o.order_number,o.remarks].map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(','));
+        const rows = orders.map(o => [o.sl_no,o.ki_id,formatExcelDate(o.order_received),o.region,o.city,o.customer_name,o.bw,o.los_status,formatExcelDate(o.cwo_date),formatExcelDate(o.installation_start),formatExcelDate(o.installation_complete),formatExcelDate(o.delivery_date),o.order_status,o.assigned_to,o.circuit_id,o.order_number,o.remarks].map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(','));
         const csv = [headers.join(','), ...rows].join('\n');
         const blob = new Blob([csv], {type:'text/csv'});
         const url = URL.createObjectURL(blob);
@@ -280,7 +304,7 @@
             <div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>📑 Intelligent Excel Import & Synchronization Engine</h2>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                Upload updated project Excel sheets (.xlsx). Updates all existing columns, adds missing circuits, removes duplicates, and refreshes the Executive Dashboard live.
+                Upload updated project Excel sheets (.xlsx). Updates all existing columns, converts Excel serial dates to standard YYYY-MM-DD, adds missing circuits, and refreshes the Executive Dashboard live.
               </p>
             </div>
             <button onClick={handleExportCSV} style={{ padding: '0.55rem 1.25rem', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}>
@@ -305,7 +329,7 @@
             <div style={{ fontSize: '3.5rem', marginBottom: '0.75rem' }}>📊</div>
             <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Drag & Drop Updated Excel File (.xlsx, .csv)</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-              Automatic column mapping, missing circuit addition, duplicate removal, and live Executive Dashboard sync
+              Automatic column mapping, Excel serial date formatting, missing circuit addition, duplicate removal, and live Executive Dashboard sync
             </p>
             <input
               ref={fileInputRef}
@@ -369,7 +393,7 @@
       const [currentUser, setCurrentUser] = React.useState(() => {
         try {
           const saved = localStorage.getItem('ki_auth_user');
-          return saved ? JSON.parse(saved) : null; // null means show Login Screen
+          return saved ? JSON.parse(saved) : null;
         } catch(e) {
           return null;
         }
@@ -484,16 +508,7 @@
           setLoginEmail('');
           setLoginPassword('');
         } else {
-          setLoginError('Invalid Email or Password. Please try preset demo accounts below.');
-        }
-      };
-
-      // Direct Preset Quick-Login helper
-      const handleQuickLogin = (email, pass) => {
-        const found = accounts.find(a => a.email.toLowerCase().trim() === email.toLowerCase().trim());
-        if (found) {
-          setCurrentUser(found);
-          setLoginError('');
+          setLoginError('Invalid Email or Password.');
         }
       };
 
@@ -588,7 +603,7 @@
         setAccounts([...accounts, accountCreated]);
         setIsCreateUserModalOpen(false);
         setNewUser({ name: '', role: 'Engineer', email: '', pass: 'user123' });
-        alert(`Account created for ${accountCreated.name} (${accountCreated.role})!\nLogin Email: ${accountCreated.email}\nPassword: ${accountCreated.pass}`);
+        alert(`Account created for ${accountCreated.name} (${accountCreated.role})!\nLogin Email (Username): ${accountCreated.email}\nPassword: ${accountCreated.pass}`);
       };
 
       // ── IF NOT LOGGED IN, SHOW AUTHENTICATION PAGE ──
@@ -646,7 +661,7 @@
                 )}
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>Email Address</label>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>Email Address (Username)</label>
                   <input
                     type="email"
                     required
@@ -685,8 +700,6 @@
                   🔐 Sign In to System
                 </button>
               </form>
-
-
             </div>
           </div>
         );
@@ -756,8 +769,8 @@
                 />
               </div>
 
-              {/* User Account Info & Logout */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              {/* User Account Info, Create User & Logout */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{ padding: '0.35rem 0.75rem', borderRadius: '8px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <span style={{ fontSize: '1rem' }}>{isSuperAdmin ? '👑' : isEngineer ? '👷' : '👁️'}</span>
                   <div>
@@ -765,6 +778,29 @@
                     <span style={{ fontSize: '0.68rem', color: isSuperAdmin ? '#d946ef' : isEngineer ? '#10b981' : '#38bdf8', fontWeight: 700 }}>{currentUser.role}</span>
                   </div>
                 </div>
+
+                {/* SUPER ADMIN CREATE USER BUTTON */}
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => setIsCreateUserModalOpen(true)}
+                    style={{
+                      padding: '0.45rem 0.9rem',
+                      background: 'linear-gradient(135deg, #a855f7 0%, #d946ef 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: 800,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(168, 85, 247, 0.35)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem'
+                    }}
+                  >
+                    <span>👤</span> Create User
+                  </button>
+                )}
 
                 <button
                   onClick={() => setDarkMode(!darkMode)}
@@ -1079,9 +1115,14 @@
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>All active (non-cancelled) Microwave circuit orders and connections.</p>
                     </div>
                     {isSuperAdmin && (
-                      <button onClick={() => setIsAddModalOpen(true)} style={{ padding: '0.5rem 1.1rem', background: 'linear-gradient(135deg, #a855f7, #d946ef)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
-                        ➕ Add New Connection
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.75rem' }}>
+                        <button onClick={() => setIsCreateUserModalOpen(true)} style={{ padding: '0.55rem 1.1rem', background: 'linear-gradient(135deg, #a855f7, #d946ef)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', boxShadow: '0 4px 12px rgba(168, 85, 247, 0.3)' }}>
+                          <span>👤</span> Create User
+                        </button>
+                        <button onClick={() => setIsAddModalOpen(true)} style={{ padding: '0.55rem 1.1rem', background: 'linear-gradient(135deg, #38bdf8, #3b82f6)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', boxShadow: '0 4px 12px rgba(56, 189, 248, 0.3)' }}>
+                          <span>➕</span> Add New Connection
+                        </button>
+                      </div>
                     )}
                   </div>
                   <div className="glass-panel table-wrap">
@@ -1112,16 +1153,16 @@
                           <tr key={o.id}>
                             <td style={{ fontWeight: 700, color: 'var(--text-muted)', width: '40px' }}>{o.sl_no}</td>
                             <td style={{ fontWeight: 800, color: 'var(--accent-blue)', whiteSpace: 'nowrap' }}>{o.ki_id}</td>
-                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{o.order_received}</td>
+                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatExcelDate(o.order_received)}</td>
                             <td><span style={{ padding: '2px 7px', borderRadius: '4px', background: 'rgba(6,182,212,0.15)', color: 'var(--accent-cyan)', fontSize: '0.72rem', fontWeight: 700 }}>{o.region}</span></td>
                             <td style={{ whiteSpace: 'nowrap' }}>{o.city}</td>
                             <td style={{ minWidth: '160px' }}><span style={{ display: 'block', maxWidth: '160px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.customer_name}</span></td>
                             <td style={{ fontWeight: 700, color: 'var(--accent-amber)', whiteSpace: 'nowrap' }}>{o.bw}</td>
                             <td><span className={`badge ${o.los_status === 'CLOS' ? 'badge-clos' : 'badge-installation'}`}>{o.los_status || '—'}</span></td>
-                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{o.cwo_date || '—'}</td>
-                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{o.installation_start || '—'}</td>
-                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{o.installation_complete || '—'}</td>
-                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{o.delivery_date || '—'}</td>
+                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatExcelDate(o.cwo_date)}</td>
+                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatExcelDate(o.installation_start)}</td>
+                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatExcelDate(o.installation_complete)}</td>
+                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatExcelDate(o.delivery_date)}</td>
                             <td style={{ minWidth: '200px' }}><span className="badge badge-installation" style={{ whiteSpace: 'nowrap' }}>{o.order_status}</span></td>
                             <td style={{ fontWeight: 600, color: o.assigned_to === 'Unassigned' ? 'var(--text-muted)' : 'var(--accent-emerald)', minWidth: '100px', whiteSpace: 'nowrap' }}>{o.assigned_to}</td>
                             <td style={{ minWidth: '85px' }}>
@@ -1180,16 +1221,16 @@
                           <tr key={o.id} style={{ background: 'rgba(244,63,94,0.04)' }}>
                             <td style={{ fontWeight: 700, color: 'var(--text-muted)', width: '40px' }}>{o.sl_no}</td>
                             <td style={{ fontWeight: 800, color: 'var(--accent-rose)', whiteSpace: 'nowrap' }}>{o.ki_id}</td>
-                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{o.order_received}</td>
+                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatExcelDate(o.order_received)}</td>
                             <td><span style={{ padding: '2px 7px', borderRadius: '4px', background: 'rgba(244,63,94,0.15)', color: 'var(--accent-rose)', fontSize: '0.72rem', fontWeight: 700 }}>{o.region}</span></td>
                             <td style={{ whiteSpace: 'nowrap' }}>{o.city}</td>
                             <td style={{ minWidth: '160px' }}><span style={{ display: 'block', maxWidth: '160px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.customer_name}</span></td>
                             <td style={{ fontWeight: 700, color: 'var(--accent-amber)', whiteSpace: 'nowrap' }}>{o.bw}</td>
                             <td><span className={`badge ${o.los_status === 'CLOS' ? 'badge-clos' : 'badge-cancelled'}`}>{o.los_status || '—'}</span></td>
-                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{o.cwo_date || '—'}</td>
-                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{o.installation_start || '—'}</td>
-                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{o.installation_complete || '—'}</td>
-                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{o.delivery_date || '—'}</td>
+                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatExcelDate(o.cwo_date)}</td>
+                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatExcelDate(o.installation_start)}</td>
+                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatExcelDate(o.installation_complete)}</td>
+                            <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatExcelDate(o.delivery_date)}</td>
                             <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', minWidth: '200px' }}>{o.remarks || '—'}</td>
                             <td style={{ minWidth: '85px' }}>
                               <button onClick={() => setSelectedOrder(o)} style={{ padding: '0.3rem 0.75rem', borderRadius: '6px', background: 'rgba(244,63,94,0.15)', border: '1px solid rgba(244,63,94,0.3)', color: '#f43f5e', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
@@ -1231,9 +1272,9 @@
                     {isSuperAdmin && (
                       <button
                         onClick={() => setIsCreateUserModalOpen(true)}
-                        style={{ padding: '0.5rem 1.1rem', background: 'linear-gradient(135deg, #a855f7, #d946ef)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', boxShadow: '0 4px 12px rgba(168, 85, 247, 0.3)' }}
+                        style={{ padding: '0.55rem 1.1rem', background: 'linear-gradient(135deg, #a855f7, #d946ef)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', boxShadow: '0 4px 12px rgba(168, 85, 247, 0.3)' }}
                       >
-                        👤 Create Engineer / Viewer Account
+                        👤 Create User Account
                       </button>
                     )}
                   </div>
@@ -1241,16 +1282,17 @@
                   {/* System User Accounts List (Super Admin only) */}
                   {isSuperAdmin && (
                     <div className="glass-panel" style={{ padding: '1.25rem' }}>
-                      <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>👥 System User Accounts ({accounts.length})</h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0.8rem' }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>👥 Registered System Users ({accounts.length})</h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.8rem' }}>
                         {accounts.map(acc => (
-                          <div key={acc.id} style={{ padding: '0.75rem', borderRadius: '8px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: acc.role === 'Super Admin' ? 'rgba(217, 70, 239, 0.2)' : acc.role === 'Engineer' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(56, 189, 248, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.1rem' }}>
+                          <div key={acc.id} style={{ padding: '0.75rem 1rem', borderRadius: '8px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: acc.role === 'Super Admin' ? 'rgba(217, 70, 239, 0.2)' : acc.role === 'Engineer' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(56, 189, 248, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.1rem' }}>
                               {acc.role === 'Super Admin' ? '👑' : acc.role === 'Engineer' ? '👷' : '👁️'}
                             </div>
                             <div>
                               <strong style={{ fontSize: '0.88rem', display: 'block', color: 'var(--text-primary)' }}>{acc.name}</strong>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{acc.role} • {acc.email}</span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block' }}>Role: <strong>{acc.role}</strong></span>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Email: {acc.email}</span>
                             </div>
                           </div>
                         ))}
@@ -1561,41 +1603,43 @@
           {/* Super Admin Modal: Create User Account */}
           {isCreateUserModalOpen && (
             <div onClick={(e) => e.target === e.currentTarget && setIsCreateUserModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
-              <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '1.75rem' }}>
+              <div className="glass-panel" style={{ width: '100%', maxWidth: '520px', padding: '1.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-purple)' }}>👤 Create New User Account</h3>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span>👤</span> Create New System User Account
+                  </h3>
                   <button onClick={() => setIsCreateUserModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.4rem', cursor: 'pointer' }}>✕</button>
                 </div>
 
                 <form onSubmit={handleCreateUserSubmit}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.85rem' }}>
                     <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem' }}>Full Name *</label>
-                      <input required type="text" placeholder="e.g. Tariq Al-Mansoor" value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-secondary)' }}>Full User Name *</label>
+                      <input required type="text" placeholder="e.g. Tariq Al-Mansoor" value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem' }}>Role *</label>
-                      <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}>
-                        <option value="Engineer">Engineer (Assigned Projects Scope)</option>
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-secondary)' }}>Role & Permission Level *</label>
+                      <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}>
+                        <option value="Engineer">Field Engineer (Assigned Projects Scope)</option>
                         <option value="Viewer">Viewer (Read-Only Scope)</option>
-                        <option value="Super Admin">Super Admin (Full Master Control)</option>
+                        <option value="Super Admin">Super Admin (Full Control)</option>
                       </select>
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem' }}>Email Address (Login Username) *</label>
-                      <input required type="email" placeholder="e.g. tariq@kreativicon.com" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-secondary)' }}>Email Address (Login Username) *</label>
+                      <input required type="email" placeholder="e.g. tariq@kreativicon.com" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem' }}>Password *</label>
-                      <input required type="text" placeholder="Set password" value={newUser.pass} onChange={(e) => setNewUser({ ...newUser, pass: e.target.value })} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-secondary)' }}>Login Password *</label>
+                      <input required type="text" placeholder="Set user account password" value={newUser.pass} onChange={(e) => setNewUser({ ...newUser, pass: e.target.value })} style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
                     </div>
                   </div>
 
-                  <button type="submit" style={{ marginTop: '1.5rem', width: '100%', padding: '0.65rem', background: 'linear-gradient(135deg, #a855f7, #d946ef)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
-                    Create Account
+                  <button type="submit" style={{ marginTop: '1.5rem', width: '100%', padding: '0.75rem', background: 'linear-gradient(135deg, #a855f7 0%, #d946ef 100%)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer', boxShadow: '0 4px 14px rgba(168,85,247,0.35)' }}>
+                    👤 Create & Activate User Account
                   </button>
                 </form>
               </div>
