@@ -78,8 +78,8 @@
     .table-wrap { overflow-x: auto; border-radius: 12px; }
     .table-wrap::-webkit-scrollbar { height: 6px; }
     .table-wrap::-webkit-scrollbar-track { background: var(--bg-primary); border-radius: 3px; }
-    .table-wrap::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.4); border-radius: 3px; }
-    .table-wrap::-webkit-scrollbar-thumb:hover { background: rgba(59,130,246,0.7); }
+    .table-wrap::-webkit-scrollbar-thumb { background: rgba(192,38,211,0.4); border-radius: 3px; }
+    .table-wrap::-webkit-scrollbar-thumb:hover { background: rgba(192,38,211,0.7); }
     .sticky-col { position: sticky; right: 0; background: var(--bg-secondary); z-index: 2; box-shadow: -3px 0 8px rgba(0,0,0,0.2); }
   </style>
 </head>
@@ -105,11 +105,18 @@
       { id: 'ord-15', sl_no: '15', ki_id: 'KIC-015-MW-MEL-STC', order_received: '2026-07-19', region: 'CENTRAL', city: 'RIYADHDST', circuit_id: 'RIYADHDISTRICTS-RIYADH W-DIA65586', order_number: 'I-155428046-6760', customer_name: 'NOURNET ISP 1', customer_contact: 'Atif--0504164527', bw: '8MBPS', los_performed: '2026-07-20', los_status: 'CLOS', los_id: 'FTR14', order_status: 'Under TWAL Approval', assigned_to: 'Unassigned', is_cancelled: false, priority: 'Medium' },
       { id: 'ord-16', sl_no: '16', ki_id: 'KIC-016-MW-MEL-STC', order_received: '2026-07-26', region: 'CENTRAL', city: 'QASSIM', circuit_id: 'QASSIM-RIYADH W-DIA66191', order_number: 'I-155826101-8176', customer_name: 'NOURNET ISP 1 - NOURNET ISP - SC 1', customer_contact: 'Atif--0504164527', bw: '8MBPS', los_status: '', los_id: '689-00-101', order_status: 'Not Yet Set', assigned_to: 'Unassigned', is_cancelled: false, priority: 'Low' },
       { id: 'ord-17', sl_no: '17', ki_id: 'KIC-017-MW-MEL-STC', order_received: '2026-07-26', region: 'CENTRAL', city: 'HAIL', circuit_id: 'HAIL-RIYADH W-DIA66171', order_number: 'I-155792125-7075', customer_name: 'NOURNET ISP 1 - NOURNET ISP - SC 1', customer_contact: 'Atif--0504164527', bw: '8MBPS', los_status: '', los_id: 'ZHAA035', order_status: 'Not Yet Set', assigned_to: 'Unassigned', is_cancelled: false, priority: 'Low' },
-      { id: 'ord-18', sl_no: '1', ki_id: 'KIC-018-MW-MEL-STC', order_received: '2026-07-16', region: 'CENTRAL', city: 'RIYADH', circuit_id: 'RIYADH-RIYADH W-DIA65391', order_number: 'I-155156872-9273', customer_name: 'NOURNET ISP 1', customer_contact: 'Atif Ahmad - 966504164527', bw: '8MBPs', los_performed: '2026-07-20', los_status: 'CLOS', los_id: 'ZAKA013', order_status: 'Cancelled', assigned_to: 'Unassigned', is_cancelled: true, priority: 'Low', remarks: 'Cancelled by customer before survey deployment.' }
+      { id: 'ord-18', sl_no: '18', ki_id: 'KIC-018-MW-MEL-STC', order_received: '2026-07-16', region: 'CENTRAL', city: 'RIYADH', circuit_id: 'RIYADH-RIYADH W-DIA65391', order_number: 'I-155156872-9273', customer_name: 'NOURNET ISP 1', customer_contact: 'Atif Ahmad - 966504164527', bw: '8MBPs', los_performed: '2026-07-20', los_status: 'CLOS', los_id: 'ZAKA013', order_status: 'Cancelled', assigned_to: 'Unassigned', is_cancelled: true, priority: 'Low', remarks: 'Cancelled by customer before survey deployment.' }
     ];
 
-    // ── ExcelTab Component (needs its own hooks, cannot be inside App render) ──
-    function ExcelTab({ orders, setOrders }) {
+    const DEFAULT_ACCOUNTS = [
+      { id: 'usr-1', name: 'Hassan Saleem', role: 'Super Admin', email: 'admin@kreativicon.com', pass: 'admin123' },
+      { id: 'usr-2', name: 'Haroon', role: 'Engineer', email: 'engineer@kreativicon.com', pass: 'engineer123' },
+      { id: 'usr-3', name: 'Shukoor', role: 'Engineer', email: 'shukoor@kreativicon.com', pass: 'engineer123' },
+      { id: 'usr-4', name: 'Viewer User', role: 'Viewer', email: 'viewer@kreativicon.com', pass: 'viewer123' }
+    ];
+
+    // ── ExcelTab Component (Smart Deduplicating & Merging Excel Parser) ──
+    function ExcelTab({ orders, setOrders, isSuperAdmin }) {
       const [excelStatus, setExcelStatus] = React.useState(null);
       const fileInputRef = React.useRef(null);
 
@@ -120,7 +127,7 @@
           setExcelStatus({ type: 'error', msg: 'Please select a valid Excel file (.xlsx, .xls) or CSV.' });
           return;
         }
-        setExcelStatus({ type: 'loading', msg: `Reading "${file.name}"...` });
+        setExcelStatus({ type: 'loading', msg: `Reading & analyzing "${file.name}"...` });
         const reader = new FileReader();
         reader.onload = (evt) => {
           try {
@@ -130,46 +137,116 @@
             const worksheet = workbook.Sheets[sheetName];
             const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
             if (rows.length === 0) {
-              setExcelStatus({ type: 'error', msg: 'No data rows found in the Excel file.' });
+              setExcelStatus({ type: 'error', msg: 'No data rows found in the selected Excel sheet.' });
               return;
             }
-            const mapped = rows.map((row, i) => {
+
+            // Standardize raw Excel row into system Order object
+            const parsedRows = rows.map((row, i) => {
               const get = (...keys) => {
                 for (const k of keys) {
                   const found = Object.keys(row).find(rk => rk.toLowerCase().replace(/[\s_\-]/g,'').includes(k.toLowerCase().replace(/[\s_\-]/g,'')));
-                  if (found && row[found] !== '') return String(row[found]);
+                  if (found && row[found] !== undefined && row[found] !== '') return String(row[found]).trim();
                 }
                 return '';
               };
+
+              const ki_id = get('kiid','ki id','kicid','orderid','id') || `KIC-EXP-${i+1}`;
+              const circuit_id = get('circuit','circuitid','circuit id');
+              const order_number = get('order number','ordernumber','order no');
+
               return {
-                id: 'xl-' + Date.now() + '-' + i,
                 sl_no: get('sl','sno','serial') || String(i + 1),
-                ki_id: get('kiid','ki id','kicid','orderid','id') || `IMPORT-${i+1}`,
-                order_received: get('order received','orderreceived','date','received') || '',
-                region: get('region') || 'CENTRAL',
-                city: get('city','location') || '',
-                customer_name: get('customer name','customername','customer','client') || '',
-                customer_contact: get('contact','phone','mobile') || '',
-                bw: get('bw','bandwidth','speed') || '',
-                circuit_id: get('circuit','circuitid','circuit id') || '',
-                order_number: get('order number','ordernumber','order no') || '',
-                los_status: get('los status','losstatus','los') || '',
-                los_id: get('los id','losid') || '',
-                cwo_date: get('cwo date','cwodate','cwo') || '',
-                installation_start: get('installation start date','installationstart','start date','installation start') || '',
-                installation_complete: get('installation complete date','installationcomplete','complete date','installation complete') || '',
-                delivery_date: get('delivery date','deliverydate','delivery') || '',
+                ki_id: ki_id,
+                order_received: get('order received','orderreceived','date','received') || new Date().toISOString().split('T')[0],
+                region: (get('region') || 'CENTRAL').toUpperCase(),
+                city: (get('city','location') || 'RIYADH').toUpperCase(),
+                customer_name: get('customer name','customername','customer','client') || 'Enterprise Client',
+                customer_contact: get('contact','phone','mobile'),
+                bw: get('bw','bandwidth','speed') || '10MBPs',
+                circuit_id: circuit_id,
+                order_number: order_number,
+                los_status: get('los status','losstatus','los') || 'CLOS',
+                los_id: get('los id','losid'),
+                cwo_date: get('cwo date','cwodate','cwo'),
+                installation_start: get('installation start date','installationstart','start date','installation start'),
+                installation_complete: get('installation complete date','installationcomplete','complete date','installation complete'),
+                delivery_date: get('delivery date','deliverydate','delivery'),
                 order_status: get('active status','workflow status','status','orderstatus') || 'Under MW Installation',
                 assigned_to: get('engineer','assigned','assignedto') || 'Unassigned',
                 priority: get('priority') || 'Medium',
                 remarks: get('remarks','notes','comment') || '',
-                is_cancelled: ['true','yes','1'].includes(get('cancelled','iscancelled','is cancelled').toLowerCase())
+                is_cancelled: ['true','yes','1','cancelled'].includes(get('cancelled','iscancelled','is cancelled').toLowerCase()) || get('active status','status').toLowerCase().includes('cancelled')
               };
             });
-            setOrders(mapped);
-            setExcelStatus({ type: 'success', msg: `✅ Successfully imported ${mapped.length} orders from "${file.name}" (Sheet: ${sheetName})` });
+
+            // SMART MERGE & DEDUPLICATION ENGINE:
+            // Match incoming Excel rows with existing orders dataset by ki_id or circuit_id
+            let updatedCount = 0;
+            let addedCount = 0;
+            let currentList = [...orders];
+
+            parsedRows.forEach((row) => {
+              // Find existing order index by ki_id or circuit_id match
+              const existingIdx = currentList.findIndex(o => 
+                (o.ki_id && row.ki_id && o.ki_id.toLowerCase().trim() === row.ki_id.toLowerCase().trim()) ||
+                (o.circuit_id && row.circuit_id && o.circuit_id.toLowerCase().trim() === row.circuit_id.toLowerCase().trim())
+              );
+
+              if (existingIdx !== -1) {
+                // UPDATE EVERY COLUMN WITH NEW DATA FROM EXCEL
+                const existing = currentList[existingIdx];
+                currentList[existingIdx] = {
+                  ...existing,
+                  sl_no: row.sl_no || existing.sl_no,
+                  ki_id: row.ki_id || existing.ki_id,
+                  order_received: row.order_received || existing.order_received,
+                  region: row.region || existing.region,
+                  city: row.city || existing.city,
+                  customer_name: row.customer_name || existing.customer_name,
+                  customer_contact: row.customer_contact || existing.customer_contact,
+                  bw: row.bw || existing.bw,
+                  circuit_id: row.circuit_id || existing.circuit_id,
+                  order_number: row.order_number || existing.order_number,
+                  los_status: row.los_status || existing.los_status,
+                  los_id: row.los_id || existing.los_id,
+                  cwo_date: row.cwo_date || existing.cwo_date,
+                  installation_start: row.installation_start || existing.installation_start,
+                  installation_complete: row.installation_complete || existing.installation_complete,
+                  delivery_date: row.delivery_date || existing.delivery_date,
+                  order_status: row.order_status || existing.order_status,
+                  assigned_to: row.assigned_to || existing.assigned_to,
+                  remarks: row.remarks || existing.remarks,
+                  is_cancelled: row.is_cancelled
+                };
+                updatedCount++;
+              } else {
+                // ADD MISSING CIRCUIT TO SYSTEM
+                currentList.push({
+                  ...row,
+                  id: 'ord-xl-' + Date.now() + '-' + Math.random().toString(36).substring(2,6)
+                });
+                addedCount++;
+              }
+            });
+
+            // FINAL DEDUPLICATION (by ki_id)
+            const uniqueMap = new Map();
+            currentList.forEach(item => {
+              const key = item.ki_id ? item.ki_id.toLowerCase().trim() : item.id;
+              uniqueMap.set(key, item);
+            });
+            const finalList = Array.from(uniqueMap.values());
+
+            // Save to React State & LocalStorage for instant Executive Dashboard recalculation
+            setOrders(finalList);
+            setExcelStatus({
+              type: 'success',
+              msg: `✅ Excel Sheet Synced Successfully! ${updatedCount} existing circuits updated, ${addedCount} missing circuits added. Total database size: ${finalList.length} circuits. Executive Dashboard updated live!`
+            });
+
           } catch (err) {
-            setExcelStatus({ type: 'error', msg: `Failed to parse file: ${err.message}` });
+            setExcelStatus({ type: 'error', msg: `Failed to parse Excel file: ${err.message}` });
           }
         };
         reader.onerror = () => setExcelStatus({ type: 'error', msg: 'Failed to read file.' });
@@ -185,30 +262,39 @@
         const blob = new Blob([csv], {type:'text/csv'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = 'KI_Orders_Export.csv'; a.click();
+        a.href = url; a.download = 'KI_Orders_Live_Database.csv'; a.click();
         URL.revokeObjectURL(url);
       };
 
       const statusStyle = excelStatus ? {
-        padding: '0.85rem 1.25rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.88rem',
+        padding: '1rem 1.25rem', borderRadius: '10px', fontWeight: 600, fontSize: '0.9rem',
         background: excelStatus.type === 'success' ? 'rgba(16,185,129,0.15)' : excelStatus.type === 'error' ? 'rgba(244,63,94,0.15)' : 'rgba(59,130,246,0.15)',
         border: `1px solid ${excelStatus.type === 'success' ? 'rgba(16,185,129,0.4)' : excelStatus.type === 'error' ? 'rgba(244,63,94,0.4)' : 'rgba(59,130,246,0.4)'}`,
-        color: excelStatus.type === 'success' ? '#10b981' : excelStatus.type === 'error' ? '#f43f5e' : 'var(--accent-blue)'
+        color: excelStatus.type === 'success' ? '#10b981' : excelStatus.type === 'error' ? '#f43f5e' : 'var(--accent-blue)',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
       } : null;
 
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>📑 Excel Workbook Import & Export Engine</h2>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Upload Excel files (.xlsx) to replace live order data, or export current data as CSV.</p>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>📑 Intelligent Excel Import & Synchronization Engine</h2>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                Upload updated project Excel sheets (.xlsx). Updates all existing columns, adds missing circuits, removes duplicates, and refreshes the Executive Dashboard live.
+              </p>
             </div>
-            <button onClick={handleExportCSV} style={{ padding: '0.5rem 1.1rem', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
-              📥 Export to CSV ({orders.length} orders)
+            <button onClick={handleExportCSV} style={{ padding: '0.55rem 1.25rem', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}>
+              📥 Export Live Database to CSV ({orders.length} orders)
             </button>
           </div>
 
           {excelStatus && <div style={statusStyle}>{excelStatus.msg}</div>}
+
+          {!isSuperAdmin && (
+            <div style={{ padding: '0.75rem 1rem', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '8px', color: '#f59e0b', fontSize: '0.82rem', fontWeight: 600 }}>
+              ⚠️ Note: You are logged in with Read-Only permissions. Super Admin credentials are required to commit Excel data updates to the system.
+            </div>
+          )}
 
           <div
             className="glass-panel"
@@ -216,9 +302,11 @@
             onDrop={handleDrop}
             style={{ padding: '3rem 2rem', textAlign: 'center', border: '2px dashed var(--border-color)', borderRadius: '16px', background: 'var(--bg-primary)' }}
           >
-            <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>📊</div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem' }}>Drag & Drop Excel File (.xlsx)</h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>Supported: .xlsx, .xls, .csv — first sheet will be imported</p>
+            <div style={{ fontSize: '3.5rem', marginBottom: '0.75rem' }}>📊</div>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Drag & Drop Updated Excel File (.xlsx, .csv)</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+              Automatic column mapping, missing circuit addition, duplicate removal, and live Executive Dashboard sync
+            </p>
             <input
               ref={fileInputRef}
               type="file"
@@ -227,21 +315,32 @@
               onChange={(e) => handleFileUpload(e.target.files[0])}
             />
             <button
+              disabled={!isSuperAdmin}
               onClick={() => fileInputRef.current && fileInputRef.current.click()}
-              style={{ padding: '0.65rem 1.8rem', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer', boxShadow: '0 4px 14px rgba(59,130,246,0.35)' }}
+              style={{
+                padding: '0.75rem 2rem',
+                background: isSuperAdmin ? 'linear-gradient(135deg, #a855f7 0%, #d946ef 100%)' : '#4b5563',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 700,
+                fontSize: '0.95rem',
+                cursor: isSuperAdmin ? 'pointer' : 'not-allowed',
+                boxShadow: isSuperAdmin ? '0 4px 14px rgba(168,85,247,0.35)' : 'none'
+              }}
             >
-              📂 Browse Excel File
+              📂 Browse & Upload Excel Sheet
             </button>
           </div>
 
           <div className="glass-panel" style={{ padding: '1.25rem' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>📊 Current Data Summary</h3>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>📊 Live System Database Metrics</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
               {[
-                { label: 'Total Orders', value: orders.length, color: 'var(--accent-blue)' },
-                { label: 'Active', value: orders.filter(o => !o.is_cancelled).length, color: '#10b981' },
-                { label: 'Cancelled', value: orders.filter(o => o.is_cancelled).length, color: '#f43f5e' },
-                { label: 'Assigned', value: orders.filter(o => o.assigned_to && o.assigned_to !== 'Unassigned').length, color: 'var(--accent-cyan)' }
+                { label: 'Total Circuits', value: orders.length, color: 'var(--accent-blue)' },
+                { label: 'Active Projects', value: orders.filter(o => !o.is_cancelled).length, color: '#10b981' },
+                { label: 'Cancelled Projects', value: orders.filter(o => o.is_cancelled).length, color: '#f43f5e' },
+                { label: 'Assigned to Engineers', value: orders.filter(o => o.assigned_to && o.assigned_to !== 'Unassigned').length, color: 'var(--accent-cyan)' }
               ].map((s, i) => (
                 <div key={i} style={{ textAlign: 'center', padding: '0.75rem', background: 'var(--bg-primary)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <div style={{ fontSize: '1.6rem', fontWeight: 800, color: s.color }}>{s.value}</div>
@@ -254,38 +353,51 @@
       );
     }
 
+    // ── MAIN APP COMPONENT ──
     function App() {
-      const [orders, setOrders] = React.useState(INITIAL_ORDERS);
+      // Load accounts from LocalStorage or default
+      const [accounts, setAccounts] = React.useState(() => {
+        try {
+          const saved = localStorage.getItem('ki_user_accounts');
+          return saved ? JSON.parse(saved) : DEFAULT_ACCOUNTS;
+        } catch(e) {
+          return DEFAULT_ACCOUNTS;
+        }
+      });
+
+      // Persistent Authenticated User Session
+      const [currentUser, setCurrentUser] = React.useState(() => {
+        try {
+          const saved = localStorage.getItem('ki_auth_user');
+          return saved ? JSON.parse(saved) : null; // null means show Login Screen
+        } catch(e) {
+          return null;
+        }
+      });
+
+      // Login Form state
+      const [loginEmail, setLoginEmail] = React.useState('');
+      const [loginPassword, setLoginPassword] = React.useState('');
+      const [loginError, setLoginError] = React.useState('');
+
+      // Persistent Orders Data
+      const [orders, setOrders] = React.useState(() => {
+        try {
+          const saved = localStorage.getItem('ki_orders_v2');
+          return saved ? JSON.parse(saved) : INITIAL_ORDERS;
+        } catch(e) {
+          return INITIAL_ORDERS;
+        }
+      });
+
       const [activeTab, setActiveTab] = React.useState('dashboard');
       const [darkMode, setDarkMode] = React.useState(true);
       const [search, setSearch] = React.useState('');
-
-      // Account management state — Hassan Saleem as default Super Admin
-      const [accounts, setAccounts] = React.useState([
-        { id: 'usr-1', name: 'Hassan Saleem', role: 'Super Admin', email: 'hassan@kreativicon.com' },
-        { id: 'usr-2', name: 'Haroon', role: 'Engineer', email: 'haroon@kreativicon.com' },
-        { id: 'usr-3', name: 'Shukoor', role: 'Engineer', email: 'shukoor@kreativicon.com' },
-        { id: 'usr-4', name: 'Viewer User', role: 'Viewer', email: 'viewer@kreativicon.com' }
-      ]);
-      const [currentAccountId, setCurrentAccountId] = React.useState('usr-1');
-
-      // Active logged in user context
-      const currentAccount = accounts.find(a => a.id === currentAccountId) || accounts[0];
-      const isSuperAdmin = currentAccount.role === 'Super Admin';
-      const isEngineer = currentAccount.role === 'Engineer';
-      const isViewer = currentAccount.role === 'Viewer';
 
       // Modals state
       const [selectedOrder, setSelectedOrder] = React.useState(null);
       const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
       const [isCreateUserModalOpen, setIsCreateUserModalOpen] = React.useState(false);
-
-      // RESTRICT ENGINEER TABS: Engineers can ONLY access 'dashboard' & 'engineers'
-      React.useEffect(() => {
-        if (isEngineer && !['dashboard', 'engineers'].includes(activeTab)) {
-          setActiveTab('dashboard');
-        }
-      }, [isEngineer, activeTab]);
 
       // Form state for creating new project connection (Super Admin)
       const [newOrder, setNewOrder] = React.useState({
@@ -316,29 +428,89 @@
       const [newUser, setNewUser] = React.useState({
         name: '',
         role: 'Engineer',
-        email: ''
+        email: '',
+        pass: 'user123'
       });
+
+      // Sync state to LocalStorage
+      React.useEffect(() => {
+        try {
+          localStorage.setItem('ki_orders_v2', JSON.stringify(orders));
+        } catch(e) {}
+      }, [orders]);
+
+      React.useEffect(() => {
+        try {
+          localStorage.setItem('ki_user_accounts', JSON.stringify(accounts));
+        } catch(e) {}
+      }, [accounts]);
+
+      React.useEffect(() => {
+        if (currentUser) {
+          try {
+            localStorage.setItem('ki_auth_user', JSON.stringify(currentUser));
+          } catch(e) {}
+        } else {
+          localStorage.removeItem('ki_auth_user');
+        }
+      }, [currentUser]);
 
       React.useEffect(() => {
         document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
       }, [darkMode]);
+
+      // Role flags
+      const isSuperAdmin = currentUser?.role === 'Super Admin';
+      const isEngineer = currentUser?.role === 'Engineer';
+      const isViewer = currentUser?.role === 'Viewer';
 
       // Ensure Engineer activeTab stays within allowed tabs
       React.useEffect(() => {
         if (isEngineer && !['dashboard', 'engineers'].includes(activeTab)) {
           setActiveTab('dashboard');
         }
-      }, [currentAccountId, isEngineer, activeTab]);
+      }, [isEngineer, activeTab]);
+
+      // Login Form Submit handler
+      const handleLoginSubmit = (e) => {
+        e?.preventDefault();
+        setLoginError('');
+        const found = accounts.find(a => 
+          a.email.toLowerCase().trim() === loginEmail.toLowerCase().trim() &&
+          (a.pass || 'admin123') === loginPassword.trim()
+        );
+        if (found) {
+          setCurrentUser(found);
+          setLoginEmail('');
+          setLoginPassword('');
+        } else {
+          setLoginError('Invalid Email or Password. Please try preset demo accounts below.');
+        }
+      };
+
+      // Direct Preset Quick-Login helper
+      const handleQuickLogin = (email, pass) => {
+        const found = accounts.find(a => a.email.toLowerCase().trim() === email.toLowerCase().trim());
+        if (found) {
+          setCurrentUser(found);
+          setLoginError('');
+        }
+      };
+
+      // Logout helper
+      const handleLogout = () => {
+        setCurrentUser(null);
+        setActiveTab('dashboard');
+      };
 
       // DATA VISIBILITY SCOPE:
-      // If an Engineer is logged in, show ONLY their assigned projects/orders
-      // If Super Admin or Viewer, show ALL orders across the organization
+      // If Engineer logged in, show ONLY their assigned projects
       const visibleOrders = React.useMemo(() => {
         if (isEngineer) {
-          return orders.filter(o => o.assigned_to === currentAccount.name);
+          return orders.filter(o => o.assigned_to === currentUser.name);
         }
         return orders;
-      }, [orders, currentAccount, isEngineer]);
+      }, [orders, currentUser, isEngineer]);
 
       const activeOrders = visibleOrders.filter(o => !o.is_cancelled);
       const totalCount = visibleOrders.length;
@@ -391,7 +563,7 @@
         alert(`New Project connection "${created.ki_id}" successfully added!`);
       };
 
-      // Handle Saving Edited Order (Super Admin can change everything)
+      // Handle Saving Edited Order
       const handleSaveEditedOrder = (e) => {
         e.preventDefault();
         setOrders(orders.map(o => o.id === selectedOrder.id ? selectedOrder : o));
@@ -410,24 +582,145 @@
           id: 'usr-' + Date.now(),
           name: newUser.name,
           role: newUser.role,
-          email: newUser.email
+          email: newUser.email,
+          pass: newUser.pass || 'user123'
         };
         setAccounts([...accounts, accountCreated]);
         setIsCreateUserModalOpen(false);
-        setNewUser({ name: '', role: 'Engineer', email: '' });
-        alert(`Account created for ${accountCreated.name} (${accountCreated.role})!`);
+        setNewUser({ name: '', role: 'Engineer', email: '', pass: 'user123' });
+        alert(`Account created for ${accountCreated.name} (${accountCreated.role})!\nLogin Email: ${accountCreated.email}\nPassword: ${accountCreated.pass}`);
       };
 
-      // Navigation tab list allowed for current role:
-      // Engineer: Dashboard & My Profile only
-      // Viewer: All tabs EXCEPT Audit Log
-      // Super Admin: Full access to ALL 8 tabs including Audit Log
-      const navTabs = isEngineer 
-        ? ['dashboard', 'engineers'] 
-        : isSuperAdmin
-          ? ['dashboard', 'orders', 'cancelled', 'customers', 'engineers', 'excel', 'email', 'audit']
-          : ['dashboard', 'orders', 'cancelled', 'customers', 'engineers', 'excel', 'email'];
+      // ── IF NOT LOGGED IN, SHOW AUTHENTICATION PAGE ──
+      if (!currentUser) {
+        return (
+          <div style={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'radial-gradient(circle at 50% 30%, #20133c 0%, #0d0a1a 100%)',
+            padding: '1.5rem'
+          }}>
+            <div className="glass-panel" style={{
+              width: '100%',
+              maxWidth: '460px',
+              padding: '2.5rem 2rem',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+              border: '1px solid rgba(192, 38, 211, 0.35)'
+            }}>
+              {/* Logo & Branding */}
+              <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.75rem' }}>
+                  <svg width="56" height="56" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter: 'drop-shadow(0 6px 16px rgba(217, 70, 239, 0.5))' }}>
+                    <rect x="10" y="8" width="18" height="84" rx="4" fill="url(#login-k-purple)" />
+                    <path d="M28 48 L76 10 H96 L42 56 Z" fill="url(#login-k-indigo)" />
+                    <path d="M38 42 L94 92 H72 L24 54 Z" fill="url(#login-k-magenta)" />
+                    <circle cx="19" cy="80" r="7" fill="#d01764" />
+                    <defs>
+                      <linearGradient id="login-k-purple" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7c3aed" /><stop offset="100%" stopColor="#4c1d95" /></linearGradient>
+                      <linearGradient id="login-k-indigo" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#6366f1" /><stop offset="100%" stopColor="#4338ca" /></linearGradient>
+                      <linearGradient id="login-k-magenta" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#e11d48" /><stop offset="100%" stopColor="#9f1239" /></linearGradient>
+                    </defs>
+                  </svg>
+                </div>
+                <h1 style={{ fontSize: '1.6rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                  <span style={{ background: 'linear-gradient(135deg, #a855f7, #d946ef, #f43f5e)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    KREATIV ICON
+                  </span>
+                  <span style={{ color: '#38bdf8', marginLeft: '6px', fontSize: '0.9rem', padding: '2px 8px', background: 'rgba(56,189,248,0.15)', borderRadius: '6px', border: '1px solid rgba(56,189,248,0.3)' }}>
+                    ISP
+                  </span>
+                </h1>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.3rem' }}>
+                  Order & Project Management System — Secured Portal
+                </p>
+              </div>
 
+              {/* Login Form */}
+              <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+                {loginError && (
+                  <div style={{ padding: '0.75rem', borderRadius: '8px', background: 'rgba(244,63,94,0.15)', border: '1px solid rgba(244,63,94,0.3)', color: '#f43f5e', fontSize: '0.8rem', fontWeight: 600, textAlign: 'center' }}>
+                    {loginError}
+                  </div>
+                )}
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="e.g. admin@kreativicon.com"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    style={{ width: '100%', padding: '0.7rem 0.9rem', borderRadius: '8px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>Password</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Enter account password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    style={{ width: '100%', padding: '0.7rem 0.9rem', borderRadius: '8px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }}
+                  />
+                </div>
+
+                <button type="submit" style={{
+                  marginTop: '0.5rem',
+                  width: '100%',
+                  padding: '0.8rem',
+                  background: 'linear-gradient(135deg, #a855f7 0%, #d946ef 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 800,
+                  fontSize: '0.95rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 16px rgba(168, 85, 247, 0.4)'
+                }}>
+                  🔐 Sign In to System
+                </button>
+              </form>
+
+              {/* Quick 1-Click Demo Logins */}
+              <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block', textAlign: 'center', marginBottom: '0.75rem' }}>
+                  QUICK 1-CLICK DEMO LOGIN PRESETS:
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <button
+                    onClick={() => handleQuickLogin('admin@kreativicon.com', 'admin123')}
+                    style={{ padding: '0.6rem 0.8rem', borderRadius: '8px', background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.3)', color: '#d946ef', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  >
+                    <span>👑 Super Admin (Full Control)</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>admin@kreativicon.com</span>
+                  </button>
+                  <button
+                    onClick={() => handleQuickLogin('engineer@kreativicon.com', 'engineer123')}
+                    style={{ padding: '0.6rem 0.8rem', borderRadius: '8px', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  >
+                    <span>👷 Field Engineer (Haroon)</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>engineer@kreativicon.com</span>
+                  </button>
+                  <button
+                    onClick={() => handleQuickLogin('viewer@kreativicon.com', 'viewer123')}
+                    style={{ padding: '0.6rem 0.8rem', borderRadius: '8px', background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.3)', color: '#38bdf8', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  >
+                    <span>👁️ Viewer User (Read-Only)</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>viewer@kreativicon.com</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // ── MAIN APPLICATION VIEW (LOGGED IN) ──
       return (
         <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
           
@@ -437,27 +730,14 @@
               
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
                 <svg width="38" height="38" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter: 'drop-shadow(0 4px 12px rgba(217, 70, 239, 0.45))' }}>
-                  {/* Stem of K */}
                   <rect x="10" y="8" width="18" height="84" rx="4" fill="url(#k-purple-stem)" />
-                  {/* Top diagonal arm of K (Indigo/Purple) */}
                   <path d="M28 48 L76 10 H96 L42 56 Z" fill="url(#k-indigo-arm)" />
-                  {/* Bottom diagonal leg of K (Magenta/Pink) */}
                   <path d="M38 42 L94 92 H72 L24 54 Z" fill="url(#k-magenta-leg)" />
-                  {/* Dot under diagonal */}
                   <circle cx="19" cy="80" r="7" fill="#d01764" />
                   <defs>
-                    <linearGradient id="k-purple-stem" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#7c3aed" />
-                      <stop offset="100%" stopColor="#4c1d95" />
-                    </linearGradient>
-                    <linearGradient id="k-indigo-arm" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#6366f1" />
-                      <stop offset="100%" stopColor="#4338ca" />
-                    </linearGradient>
-                    <linearGradient id="k-magenta-leg" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#e11d48" />
-                      <stop offset="100%" stopColor="#9f1239" />
-                    </linearGradient>
+                    <linearGradient id="k-purple-stem" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7c3aed" /><stop offset="100%" stopColor="#4c1d95" /></linearGradient>
+                    <linearGradient id="k-indigo-arm" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#6366f1" /><stop offset="100%" stopColor="#4338ca" /></linearGradient>
+                    <linearGradient id="k-magenta-leg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#e11d48" /><stop offset="100%" stopColor="#9f1239" /></linearGradient>
                   </defs>
                 </svg>
                 <div>
@@ -472,23 +752,10 @@
                     alignItems: 'center',
                     gap: '8px'
                   }}>
-                    <span style={{
-                      background: 'linear-gradient(135deg, #a855f7 0%, #d946ef 55%, #f43f5e 100%)',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent'
-                    }}>
+                    <span style={{ background: 'linear-gradient(135deg, #a855f7 0%, #d946ef 55%, #f43f5e 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                       KREATIV ICON
                     </span>
-                    <span style={{
-                      fontSize: '0.78rem',
-                      padding: '2px 8px',
-                      borderRadius: '6px',
-                      background: 'linear-gradient(135deg, rgba(56,189,248,0.2), rgba(168,85,247,0.2))',
-                      border: '1px solid rgba(56,189,248,0.4)',
-                      color: '#38bdf8',
-                      fontWeight: 800,
-                      letterSpacing: '1px'
-                    }}>
+                    <span style={{ fontSize: '0.78rem', padding: '2px 8px', borderRadius: '6px', background: 'linear-gradient(135deg, rgba(56,189,248,0.2), rgba(168,85,247,0.2))', border: '1px solid rgba(56,189,248,0.4)', color: '#38bdf8', fontWeight: 800, letterSpacing: '1px' }}>
                       ISP
                     </span>
                   </h1>
@@ -498,376 +765,340 @@
                 </div>
               </div>
 
-              <div style={{ flex: 1, maxW: '450px', margin: '0 1.5rem' }}>
+              {/* Global Search Bar */}
+              <div style={{ flex: 1, maxWidth: '420px', margin: '0 1.5rem' }}>
                 <input
                   type="text"
-                  placeholder="Global Search (Customer, KI ID, Circuit ID...)"
+                  placeholder="Global Search (KI ID, Circuit ID, Customer, Engineer...)"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  style={{ width: '100%', padding: '0.5rem 1rem', borderRadius: '8px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                  style={{
+                    width: '100%',
+                    padding: '0.45rem 0.9rem',
+                    borderRadius: '8px',
+                    background: 'var(--bg-primary)',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.85rem'
+                  }}
                 />
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                
-                {/* Account Switcher */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--bg-primary)', padding: '0.3rem 0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Active Account:</span>
-                  <select
-                    value={currentAccountId}
-                    onChange={(e) => setCurrentAccountId(e.target.value)}
-                    style={{ background: 'transparent', color: 'var(--accent-cyan)', border: 'none', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', outline: 'none' }}
-                  >
-                    {accounts.map(acc => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.role === 'Super Admin' ? '👑' : acc.role === 'Engineer' ? '👷' : '👁️'} {acc.name} ({acc.role})
-                      </option>
-                    ))}
-                  </select>
+              {/* User Account Info & Logout */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{ padding: '0.35rem 0.75rem', borderRadius: '8px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '1rem' }}>{isSuperAdmin ? '👑' : isEngineer ? '👷' : '👁️'}</span>
+                  <div>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 800, display: 'block', color: 'var(--text-primary)' }}>{currentUser.name}</span>
+                    <span style={{ fontSize: '0.68rem', color: isSuperAdmin ? '#d946ef' : isEngineer ? '#10b981' : '#38bdf8', fontWeight: 700 }}>{currentUser.role}</span>
+                  </div>
                 </div>
 
-                {/* Super Admin Quick Actions */}
-                {isSuperAdmin && (
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <button
-                      onClick={() => setIsAddModalOpen(true)}
-                      style={{ padding: '0.45rem 0.85rem', borderRadius: '6px', background: 'linear-gradient(135deg, #a855f7, #d946ef)', color: '#fff', border: 'none', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 4px 14px rgba(217, 70, 239, 0.35)' }}
-                    >
-                      ➕ Add Project
-                    </button>
-                    <button
-                      onClick={() => setIsCreateUserModalOpen(true)}
-                      style={{ padding: '0.45rem 0.85rem', borderRadius: '6px', background: 'linear-gradient(135deg, #c026d3, #e11d48)', color: '#fff', border: 'none', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 4px 14px rgba(225, 29, 72, 0.35)' }}
-                    >
-                      👤 Add User
-                    </button>
-                  </div>
-                )}
-
-                <button onClick={() => setDarkMode(!darkMode)} style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                <button
+                  onClick={() => setDarkMode(!darkMode)}
+                  style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '8px', padding: '0.45rem 0.75rem', cursor: 'pointer' }}
+                >
                   {darkMode ? '🌙' : '☀️'}
                 </button>
-              </div>
 
+                <button
+                  onClick={handleLogout}
+                  style={{ background: 'rgba(244,63,94,0.15)', border: '1px solid rgba(244,63,94,0.3)', color: '#f43f5e', borderRadius: '8px', padding: '0.45rem 0.85rem', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}
+                >
+                  🚪 Logout
+                </button>
+              </div>
             </div>
 
-            <nav style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
-              {navTabs.map(tab => {
-                const isCancelledTab = tab === 'cancelled';
-                const accentColor = isCancelledTab ? 'var(--accent-rose)' : 'var(--accent-blue)';
-                const isActive = activeTab === tab;
-                return (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    style={{
-                      padding: '0.6rem 1.2rem',
-                      border: 'none',
-                      background: isActive ? 'var(--bg-primary)' : 'transparent',
-                      color: isActive ? accentColor : 'var(--text-secondary)',
-                      fontWeight: isActive ? 700 : 500,
-                      borderRadius: '8px 8px 0 0',
-                      borderBottom: isActive ? `3px solid ${accentColor}` : 'none',
-                      cursor: 'pointer',
-                      textTransform: 'capitalize'
-                    }}
-                  >
-                    {tab === 'dashboard' ? '📊 Dashboard'
-                      : tab === 'orders' ? '📦 Active Orders'
-                      : tab === 'cancelled' ? '🚫 Cancelled Orders'
-                      : tab === 'customers' ? '🏢 Customers'
-                      : tab === 'engineers' ? (isEngineer ? '👷 My Profile & Projects' : '👷 Engineers')
-                      : tab === 'excel' ? '📑 Excel'
-                      : tab === 'email' ? '📧 Email'
-                      : '📜 Audit Log'}
-                  </button>
-                );
-              })}
+            {/* Navigation Tabs */}
+            <nav style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', padding: '0.5rem 0 0 0' }}>
+              {[
+                { id: 'dashboard', label: 'Dashboard', icon: '📊', show: true },
+                { id: 'orders', label: `Active Orders (${activeCount})`, icon: '📦', show: !isEngineer },
+                { id: 'cancelled', label: `Cancelled (${cancelledCount})`, icon: '🚫', show: !isEngineer },
+                { id: 'engineers', label: isEngineer ? 'My Assigned Workload' : 'Engineer Workload', icon: '👷', show: true },
+                { id: 'excel', label: 'Excel Import/Sync', icon: '📑', show: !isEngineer },
+                { id: 'email', label: 'Email Reports', icon: '📧', show: !isEngineer },
+                { id: 'audit', label: 'Audit Trail', icon: '📜', show: isSuperAdmin }
+              ].filter(t => t.show).map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    padding: '0.55rem 1.1rem',
+                    border: 'none',
+                    background: activeTab === tab.id ? 'var(--bg-primary)' : 'transparent',
+                    color: activeTab === tab.id ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                    fontWeight: activeTab === tab.id ? 800 : 600,
+                    fontSize: '0.85rem',
+                    borderRadius: '8px 8px 0 0',
+                    borderBottom: activeTab === tab.id ? '3px solid var(--accent-blue)' : '3px solid transparent',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
             </nav>
           </header>
 
-          {/* Engineer Isolation Scope Banner — Removed per user request */}
-
-          {/* Viewer Scope Banner — Removed per user request */}
-
-          {/* Main Body */}
-          <main style={{ flex: 1, padding: '1.5rem', maxWidth: '1600px', margin: '0 auto', width: '100%' }}>
+          {/* Main Body Content */}
+          <main style={{ flex: 1, padding: '1.5rem', maxWidth: '1600px', width: '100%', margin: '0 auto' }}>
             
+            {/* Engineer Restricted View Alert */}
+            {isEngineer && (
+              <div style={{ marginBottom: '1.25rem', padding: '0.75rem 1.25rem', background: 'rgba(56, 189, 248, 0.12)', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '10px', color: '#38bdf8', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>🔒</span> Field Engineer Access Scope: Logged in as <strong>{currentUser.name} ({currentUser.email})</strong>. Restricted view showing only your assigned projects and engineering tasks.
+              </div>
+            )}
+
+            {/* Viewer Alert */}
+            {isViewer && (
+              <div style={{ marginBottom: '1.25rem', padding: '0.75rem 1.25rem', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '10px', color: '#f59e0b', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>👁️</span> Viewer Access: Logged in as <strong>{currentUser.name}</strong> (Read-Only Mode). Editing and Excel uploads are disabled.
+              </div>
+            )}
+
+            {/* ── EXECUTIVE DASHBOARD TAB ── */}
             {activeTab === 'dashboard' && (() => {
               const statusCounts = {};
-              visibleOrders.forEach(o => {
-                const s = o.order_status || 'Not Yet Set';
-                statusCounts[s] = (statusCounts[s] || 0) + 1;
+              activeOrders.forEach(o => {
+                const st = o.order_status || 'Under MW Installation';
+                statusCounts[st] = (statusCounts[st] || 0) + 1;
               });
 
               const regionCounts = {};
               visibleOrders.forEach(o => {
-                const r = o.region || 'CENTRAL';
-                regionCounts[r] = (regionCounts[r] || 0) + 1;
-              });
-
-              const engCounts = {};
-              visibleOrders.forEach(o => {
-                const e = o.assigned_to || 'Unassigned';
-                engCounts[e] = (engCounts[e] || 0) + 1;
+                const reg = o.region || 'CENTRAL';
+                regionCounts[reg] = (regionCounts[reg] || 0) + 1;
               });
 
               const bwCounts = {};
               visibleOrders.forEach(o => {
-                const b = o.bw || 'Other';
-                bwCounts[b] = (bwCounts[b] || 0) + 1;
+                const bw = o.bw || '10MBPs';
+                bwCounts[bw] = (bwCounts[bw] || 0) + 1;
               });
 
-              const statusColors = {
-                'Under MW Installation': '#f59e0b',
-                'Under Activation': '#06b6d4',
-                'Under TWAL Approval': '#a855f7',
-                'Delivered': '#3b82f6',
-                'Delivered /CR Pending': '#3b82f6',
-                'Pending Due to Ip issues at Mobily End': '#ef4444',
-                'Cancelled': '#f43f5e',
-                'Not Yet Set': '#64748b'
-              };
+              const engCounts = {};
+              visibleOrders.forEach(o => {
+                const eng = o.assigned_to || 'Unassigned';
+                engCounts[eng] = (engCounts[eng] || 0) + 1;
+              });
 
               const stcPercent = totalCount > 0 ? Math.round((stcCount / totalCount) * 100) : 0;
-              const mobilyPercent = 100 - stcPercent;
+              const mobilyPercent = totalCount > 0 ? Math.round((mobilyCount / totalCount) * 100) : 0;
 
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                   
-                  {/* Primary Metric Cards */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.2rem' }}>
-                    <div className="glass-card" style={{ padding: '1.25rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>TOTAL ASSIGNED ORDERS</span>
-                      <div style={{ fontSize: '2.2rem', fontWeight: 800, marginTop: '0.3rem' }}>{totalCount}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.4rem' }}>Active: <strong style={{ color: '#10b981' }}>{activeCount}</strong> | Cancelled: <strong style={{ color: '#f43f5e' }}>{cancelledCount}</strong></div>
+                  {/* KPI Cards Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid var(--accent-blue)' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Total Orders</span>
+                      <div style={{ fontSize: '2rem', fontWeight: 800, margin: '0.2rem 0', color: 'var(--accent-blue)' }}>{totalCount}</div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>All circuits in database</span>
                     </div>
 
-                    <div className="glass-card" style={{ padding: '1.25rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>LOS COMPLETED (CLOS)</span>
-                      <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#10b981', marginTop: '0.3rem' }}>{closCount}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.4rem' }}>Rate: <strong>{activeCount > 0 ? ((closCount / activeCount) * 100).toFixed(1) : 0}%</strong></div>
+                    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid #10b981' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Active Projects</span>
+                      <div style={{ fontSize: '2rem', fontWeight: 800, margin: '0.2rem 0', color: '#10b981' }}>{activeCount}</div>
+                      <span style={{ fontSize: '0.75rem', color: '#10b981' }}>{totalCount > 0 ? ((activeCount/totalCount)*100).toFixed(0) : 0}% Active Rate</span>
                     </div>
 
-                    <div className="glass-card" style={{ padding: '1.25rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>IN PROCESS / INSTALLING</span>
-                      <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#f59e0b', marginTop: '0.3rem' }}>{installingCount}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.4rem' }}>Active MW Installations</div>
+                    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid #f43f5e' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Cancelled</span>
+                      <div style={{ fontSize: '2rem', fontWeight: 800, margin: '0.2rem 0', color: '#f43f5e' }}>{cancelledCount}</div>
+                      <span style={{ fontSize: '0.75rem', color: '#f43f5e' }}>{totalCount > 0 ? ((cancelledCount/totalCount)*100).toFixed(0) : 0}% Cancelled Rate</span>
                     </div>
 
-                    <div className="glass-card" style={{ padding: '1.25rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>DELIVERED / ACTIVATED</span>
-                      <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#3b82f6', marginTop: '0.3rem' }}>{deliveredCount}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.4rem' }}>Circuits Completed</div>
+                    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid #38bdf8' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>LOS CLOS Completed</span>
+                      <div style={{ fontSize: '2rem', fontWeight: 800, margin: '0.2rem 0', color: '#38bdf8' }}>{closCount}</div>
+                      <span style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{activeCount > 0 ? ((closCount/activeCount)*100).toFixed(0) : 0}% LOS Pass Rate</span>
                     </div>
-                  </div>
 
-                  {/* Sub KPI Row */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
-                    <div className="glass-card" style={{ padding: '1rem', borderLeft: '3px solid #8b5cf6' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Awaiting TWAL Approval</span>
-                      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#8b5cf6' }}>{twalCount}</div>
+                    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid #f59e0b' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>MW Installing</span>
+                      <div style={{ fontSize: '2rem', fontWeight: 800, margin: '0.2rem 0', color: '#f59e0b' }}>{installingCount}</div>
+                      <span style={{ fontSize: '0.75rem', color: '#f59e0b' }}>In field deployment</span>
                     </div>
-                    <div className="glass-card" style={{ padding: '1rem', borderLeft: '3px solid #06b6d4' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>STC Network Orders</span>
-                      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#06b6d4' }}>{stcCount}</div>
-                    </div>
-                    <div className="glass-card" style={{ padding: '1rem', borderLeft: '3px solid #10b981' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Mobily Network Orders</span>
-                      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#10b981' }}>{mobilyCount}</div>
+
+                    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid #3b82f6' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Delivered Circuits</span>
+                      <div style={{ fontSize: '2rem', fontWeight: 800, margin: '0.2rem 0', color: '#3b82f6' }}>{deliveredCount}</div>
+                      <span style={{ fontSize: '0.75rem', color: '#3b82f6' }}>Handed over to client</span>
                     </div>
                   </div>
 
-                  {/* 📊 VISUAL ANALYTICS CHARTS SECTION (Hidden for Engineers per user request) */}
-                  {!isEngineer && (
-                    <React.Fragment>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.5rem' }}>
-                        
-                        {/* Workflow Stages Distribution Bar Chart */}
-                        <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
-                            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              📊 Workflow Status Breakdown
-                            </h3>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{totalCount} Projects</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                            {Object.entries(statusCounts).map(([status, count]) => {
-                              const pct = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0;
-                              const barColor = statusColors[status] || '#a855f7';
-                              return (
-                                <div key={status}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.3rem', fontWeight: 600 }}>
-                                    <span style={{ color: 'var(--text-primary)' }}>{status}</span>
-                                    <span style={{ color: 'var(--text-secondary)' }}>{count} ({pct}%)</span>
-                                  </div>
-                                  <div style={{ height: '8px', width: '100%', background: 'var(--bg-primary)', borderRadius: '4px', overflow: 'hidden' }}>
-                                    <div style={{ height: '100%', width: `${pct}%`, background: barColor, borderRadius: '4px', transition: 'width 0.4s ease' }} />
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Network Telco Ratio & Engineer Workload Distribution */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                          
-                          {/* Telco Operator Ratio Meter */}
-                          <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              📡 Network Telco Operator Share
-                            </h3>
-                            <div style={{ height: '20px', width: '100%', background: 'var(--bg-primary)', borderRadius: '10px', overflow: 'hidden', display: 'flex', padding: '2px' }}>
-                              <div style={{ width: `${stcPercent}%`, background: 'linear-gradient(90deg, #06b6d4, #3b82f6)', borderRadius: '8px', transition: 'width 0.4s' }} />
-                              <div style={{ width: `${mobilyPercent}%`, background: 'linear-gradient(90deg, #10b981, #059669)', borderRadius: '8px', transition: 'width 0.4s', marginLeft: '2px' }} />
+                  {/* Operational Status Breakdown & Telco Share */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.5rem' }}>
+                    <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        📈 Project Status Breakdown
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                        {Object.entries(statusCounts).map(([status, count]) => {
+                          const pct = activeCount > 0 ? Math.round((count / activeCount) * 100) : 0;
+                          const barColor = status.includes('Installation') ? '#f59e0b' : status.startsWith('Delivered') ? '#3b82f6' : status.includes('Activation') ? '#06b6d4' : '#8b5cf6';
+                          return (
+                            <div key={status}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.3rem', fontWeight: 600 }}>
+                                <span>{status}</span>
+                                <span style={{ color: 'var(--text-secondary)' }}>{count} ({pct}%)</span>
+                              </div>
+                              <div style={{ height: '8px', width: '100%', background: 'var(--bg-primary)', borderRadius: '4px', overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${pct}%`, background: barColor, borderRadius: '4px' }} />
+                              </div>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.8rem', fontSize: '0.82rem', fontWeight: 700 }}>
-                              <span style={{ color: '#06b6d4' }}>STC: {stcCount} ({stcPercent}%)</span>
-                              <span style={{ color: '#10b981' }}>Mobily: {mobilyCount} ({mobilyPercent}%)</span>
-                            </div>
-                          </div>
-
-                          {/* Engineer Workload Chart */}
-                          <div className="glass-panel" style={{ padding: '1.5rem', flex: 1 }}>
-                            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              👷 Engineer Workload Distribution
-                            </h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                              {Object.entries(engCounts).map(([eng, count]) => {
-                                const pct = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0;
-                                return (
-                                  <div key={eng}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.3rem', fontWeight: 600 }}>
-                                      <span style={{ color: eng === 'Unassigned' ? 'var(--text-muted)' : 'var(--accent-emerald)' }}>{eng}</span>
-                                      <span style={{ color: 'var(--text-secondary)' }}>{count} Projects ({pct}%)</span>
-                                    </div>
-                                    <div style={{ height: '8px', width: '100%', background: 'var(--bg-primary)', borderRadius: '4px', overflow: 'hidden' }}>
-                                      <div style={{ height: '100%', width: `${pct}%`, background: eng === 'Unassigned' ? '#64748b' : 'linear-gradient(90deg, #10b981, #34d399)', borderRadius: '4px' }} />
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                        </div>
+                          );
+                        })}
                       </div>
+                    </div>
 
-                      {/* Regional & Bandwidth Grid Charts */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.5rem' }}>
-                        
-                        {/* Regional Distribution */}
-                        <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            🌍 Regional Circuit Distribution
-                          </h3>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                            {Object.entries(regionCounts).map(([region, count]) => {
-                              const pct = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0;
-                              return (
-                                <div key={region}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.3rem', fontWeight: 600 }}>
-                                    <span style={{ color: 'var(--accent-cyan)' }}>{region}</span>
-                                    <span style={{ color: 'var(--text-secondary)' }}>{count} ({pct}%)</span>
-                                  </div>
-                                  <div style={{ height: '8px', width: '100%', background: 'var(--bg-primary)', borderRadius: '4px', overflow: 'hidden' }}>
-                                    <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg, #06b6d4, #a855f7)', borderRadius: '4px' }} />
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Bandwidth Demand Allocation */}
-                        <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            ⚡ Bandwidth Capacity Allocation
-                          </h3>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                            {Object.entries(bwCounts).map(([bw, count]) => {
-                              const pct = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0;
-                              return (
-                                <div key={bw}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.3rem', fontWeight: 600 }}>
-                                    <span style={{ color: 'var(--accent-amber)' }}>{bw}</span>
-                                    <span style={{ color: 'var(--text-secondary)' }}>{count} Circuits ({pct}%)</span>
-                                  </div>
-                                  <div style={{ height: '8px', width: '100%', background: 'var(--bg-primary)', borderRadius: '4px', overflow: 'hidden' }}>
-                                    <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg, #f59e0b, #d946ef)', borderRadius: '4px' }} />
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                      </div>
-
-                      {/* Recent Active Projects Quick Table Preview */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                       <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>⚡ Recent Active Projects Quick Overview</h3>
-                          <button onClick={() => setActiveTab('orders')} style={{ padding: '0.4rem 0.9rem', borderRadius: '6px', background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.3)', color: 'var(--accent-purple)', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}>
-                            View All Orders ({activeCount}) →
-                          </button>
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          📡 Network Telco Operator Share
+                        </h3>
+                        <div style={{ height: '20px', width: '100%', background: 'var(--bg-primary)', borderRadius: '10px', overflow: 'hidden', display: 'flex', padding: '2px' }}>
+                          <div style={{ width: `${stcPercent}%`, background: 'linear-gradient(90deg, #06b6d4, #3b82f6)', borderRadius: '8px', transition: 'width 0.4s' }} />
+                          <div style={{ width: `${mobilyPercent}%`, background: 'linear-gradient(90deg, #10b981, #059669)', borderRadius: '8px', transition: 'width 0.4s', marginLeft: '2px' }} />
                         </div>
-                        <div className="table-wrap">
-                          <table className="custom-table" style={{ minWidth: '800px' }}>
-                            <thead>
-                              <tr>
-                                <th>KI ID</th>
-                                <th>Customer</th>
-                                <th>City</th>
-                                <th>BW</th>
-                                <th>Status</th>
-                                <th>Engineer</th>
-                                <th>Action</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {activeOrders.slice(0, 5).map(o => (
-                                <tr key={o.id}>
-                                  <td style={{ fontWeight: 800, color: 'var(--accent-blue)' }}>{o.ki_id}</td>
-                                  <td style={{ fontWeight: 600 }}>{o.customer_name}</td>
-                                  <td>{o.city}</td>
-                                  <td style={{ fontWeight: 700, color: 'var(--accent-amber)' }}>{o.bw}</td>
-                                  <td><span className="badge badge-installation">{o.order_status}</span></td>
-                                  <td style={{ fontWeight: 600, color: o.assigned_to === 'Unassigned' ? 'var(--text-muted)' : 'var(--accent-emerald)' }}>{o.assigned_to}</td>
-                                  <td>
-                                    <button onClick={() => setSelectedOrder(o)} style={{ padding: '0.25rem 0.65rem', borderRadius: '6px', background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', color: 'var(--accent-blue)', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer' }}>
-                                      {isSuperAdmin ? '✏️ Edit' : '👁️ View'}
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.8rem', fontSize: '0.82rem', fontWeight: 700 }}>
+                          <span style={{ color: '#06b6d4' }}>STC: {stcCount} ({stcPercent}%)</span>
+                          <span style={{ color: '#10b981' }}>Mobily: {mobilyCount} ({mobilyPercent}%)</span>
                         </div>
                       </div>
-                    </React.Fragment>
-                  )}
+
+                      <div className="glass-panel" style={{ padding: '1.5rem', flex: 1 }}>
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          👷 Engineer Workload Distribution
+                        </h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                          {Object.entries(engCounts).map(([eng, count]) => {
+                            const pct = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0;
+                            return (
+                              <div key={eng}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.3rem', fontWeight: 600 }}>
+                                  <span style={{ color: eng === 'Unassigned' ? 'var(--text-muted)' : 'var(--accent-emerald)' }}>{eng}</span>
+                                  <span style={{ color: 'var(--text-secondary)' }}>{count} Projects ({pct}%)</span>
+                                </div>
+                                <div style={{ height: '8px', width: '100%', background: 'var(--bg-primary)', borderRadius: '4px', overflow: 'hidden' }}>
+                                  <div style={{ height: '100%', width: `${pct}%`, background: eng === 'Unassigned' ? '#64748b' : 'linear-gradient(90deg, #10b981, #34d399)', borderRadius: '4px' }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Regional & Bandwidth Distribution */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.5rem' }}>
+                    <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        🌍 Regional Circuit Distribution
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                        {Object.entries(regionCounts).map(([region, count]) => {
+                          const pct = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0;
+                          return (
+                            <div key={region}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.3rem', fontWeight: 600 }}>
+                                <span style={{ color: 'var(--accent-cyan)' }}>{region}</span>
+                                <span style={{ color: 'var(--text-secondary)' }}>{count} ({pct}%)</span>
+                              </div>
+                              <div style={{ height: '8px', width: '100%', background: 'var(--bg-primary)', borderRadius: '4px', overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg, #06b6d4, #a855f7)', borderRadius: '4px' }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        ⚡ Bandwidth Capacity Allocation
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                        {Object.entries(bwCounts).map(([bw, count]) => {
+                          const pct = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0;
+                          return (
+                            <div key={bw}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.3rem', fontWeight: 600 }}>
+                                <span style={{ color: 'var(--accent-amber)' }}>{bw}</span>
+                                <span style={{ color: 'var(--text-secondary)' }}>{count} Circuits ({pct}%)</span>
+                              </div>
+                              <div style={{ height: '8px', width: '100%', background: 'var(--bg-primary)', borderRadius: '4px', overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg, #f59e0b, #d946ef)', borderRadius: '4px' }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Active Orders Table Preview */}
+                  <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>⚡ Recent Active Projects Quick Overview</h3>
+                      {!isEngineer && (
+                        <button onClick={() => setActiveTab('orders')} style={{ padding: '0.4rem 0.9rem', borderRadius: '6px', background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.3)', color: 'var(--accent-purple)', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}>
+                          View All Orders ({activeCount}) →
+                        </button>
+                      )}
+                    </div>
+                    <div className="table-wrap">
+                      <table className="custom-table" style={{ minWidth: '800px' }}>
+                        <thead>
+                          <tr>
+                            <th>KI ID</th>
+                            <th>Customer</th>
+                            <th>City</th>
+                            <th>BW</th>
+                            <th>Status</th>
+                            <th>Engineer</th>
+                            <th>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activeOrders.slice(0, 6).map(o => (
+                            <tr key={o.id}>
+                              <td style={{ fontWeight: 800, color: 'var(--accent-blue)' }}>{o.ki_id}</td>
+                              <td style={{ fontWeight: 600 }}>{o.customer_name}</td>
+                              <td>{o.city}</td>
+                              <td style={{ fontWeight: 700, color: 'var(--accent-amber)' }}>{o.bw}</td>
+                              <td><span className="badge badge-installation">{o.order_status}</span></td>
+                              <td style={{ fontWeight: 600, color: o.assigned_to === 'Unassigned' ? 'var(--text-muted)' : 'var(--accent-emerald)' }}>{o.assigned_to}</td>
+                              <td>
+                                <button onClick={() => setSelectedOrder(o)} style={{ padding: '0.25rem 0.65rem', borderRadius: '6px', background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', color: 'var(--accent-blue)', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer' }}>
+                                  {isSuperAdmin ? '✏️ Edit' : '👁️ View'}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
 
                 </div>
               );
             })()}
 
             {/* ── ACTIVE ORDERS TAB ── */}
-            {activeTab === 'orders' && (() => {
+            {activeTab === 'orders' && !isEngineer && (() => {
               const filtered = activeOrders.filter(o => {
                 const q = search.toLowerCase();
                 return !q || o.ki_id.toLowerCase().includes(q) || o.customer_name.toLowerCase().includes(q) || (o.circuit_id || '').toLowerCase().includes(q) || (o.city || '').toLowerCase().includes(q);
               });
-              const getStatusBadge = (status) => {
-                if (!status) return 'badge-installation';
-                if (status.includes('Installation')) return 'badge-installation';
-                if (status.startsWith('Delivered') || status.includes('CR Pending')) return 'badge-delivered';
-                if (status.includes('Activation')) return 'badge-activation';
-                if (status.includes('TWAL')) return 'badge-twal';
-                if (status === 'Cancelled') return 'badge-cancelled';
-                return 'badge-installation';
-              };
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
@@ -876,8 +1107,8 @@
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>All active (non-cancelled) Microwave circuit orders and connections.</p>
                     </div>
                     {isSuperAdmin && (
-                      <button onClick={() => setIsAddModalOpen(true)} style={{ padding: '0.5rem 1.1rem', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
-                        ➕ Add Project
+                      <button onClick={() => setIsAddModalOpen(true)} style={{ padding: '0.5rem 1.1rem', background: 'linear-gradient(135deg, #a855f7, #d946ef)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
+                        ➕ Add New Connection
                       </button>
                     )}
                   </div>
@@ -894,8 +1125,8 @@
                           <th style={{ width: '70px' }}>BW</th>
                           <th>LOS Status</th>
                           <th>CWO Date</th>
-                          <th>Installation Start Date</th>
-                          <th>Installation Complete Date</th>
+                          <th>Installation Start</th>
+                          <th>Installation Complete</th>
                           <th>Delivery Date</th>
                           <th style={{ minWidth: '200px' }}>Active Status</th>
                           <th style={{ minWidth: '100px' }}>Engineer</th>
@@ -919,10 +1150,10 @@
                             <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{o.installation_start || '—'}</td>
                             <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{o.installation_complete || '—'}</td>
                             <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{o.delivery_date || '—'}</td>
-                            <td style={{ minWidth: '200px' }}><span className={`badge ${getStatusBadge(o.order_status)}`} style={{ whiteSpace: 'nowrap' }}>{o.order_status}</span></td>
+                            <td style={{ minWidth: '200px' }}><span className="badge badge-installation" style={{ whiteSpace: 'nowrap' }}>{o.order_status}</span></td>
                             <td style={{ fontWeight: 600, color: o.assigned_to === 'Unassigned' ? 'var(--text-muted)' : 'var(--accent-emerald)', minWidth: '100px', whiteSpace: 'nowrap' }}>{o.assigned_to}</td>
                             <td style={{ minWidth: '85px' }}>
-                              <button onClick={() => setSelectedOrder(o)} style={{ padding: '0.3rem 0.75rem', borderRadius: '6px', background: isSuperAdmin ? 'linear-gradient(135deg,rgba(59,130,246,0.25),rgba(37,99,235,0.25))' : 'rgba(100,116,139,0.15)', border: `1px solid ${isSuperAdmin ? 'rgba(59,130,246,0.5)' : 'rgba(100,116,139,0.3)'}`, color: isSuperAdmin ? 'var(--accent-blue)' : 'var(--text-secondary)', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              <button onClick={() => setSelectedOrder(o)} style={{ padding: '0.3rem 0.75rem', borderRadius: '6px', background: isSuperAdmin ? 'rgba(168,85,247,0.2)' : 'rgba(100,116,139,0.15)', border: `1px solid ${isSuperAdmin ? 'rgba(168,85,247,0.4)' : 'rgba(100,116,139,0.3)'}`, color: isSuperAdmin ? 'var(--accent-blue)' : 'var(--text-secondary)', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                                 {isSuperAdmin ? '✏️ Edit' : '👁️ View'}
                               </button>
                             </td>
@@ -936,7 +1167,7 @@
             })()}
 
             {/* ── CANCELLED ORDERS TAB ── */}
-            {activeTab === 'cancelled' && (() => {
+            {activeTab === 'cancelled' && !isEngineer && (() => {
               const cancelledOrders = visibleOrders.filter(o => o.is_cancelled);
               const filtered = cancelledOrders.filter(o => {
                 const q = search.toLowerCase();
@@ -948,16 +1179,6 @@
                     <div>
                       <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-rose)' }}>🚫 Cancelled Orders ({filtered.length})</h2>
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>All terminated, withdrawn, or customer-cancelled circuit orders.</p>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.75rem' }}>
-                      <div style={{ padding: '0.5rem 1rem', borderRadius: '8px', background: 'rgba(244,63,94,0.15)', border: '1px solid rgba(244,63,94,0.3)', textAlign: 'center' }}>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-rose)' }}>{cancelledOrders.length}</div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Total Cancelled</div>
-                      </div>
-                      <div style={{ padding: '0.5rem 1rem', borderRadius: '8px', background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.2)', textAlign: 'center' }}>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fb7185' }}>{totalCount > 0 ? ((cancelledOrders.length / totalCount) * 100).toFixed(1) : 0}%</div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Cancellation Rate</div>
-                      </div>
                     </div>
                   </div>
                   <div className="glass-panel table-wrap" style={{ border: '1px solid rgba(244,63,94,0.2)' }}>
@@ -973,8 +1194,8 @@
                           <th style={{ width: '70px' }}>BW</th>
                           <th>LOS Status</th>
                           <th>CWO Date</th>
-                          <th>Installation Start Date</th>
-                          <th>Installation Complete Date</th>
+                          <th>Installation Start</th>
+                          <th>Installation Complete</th>
                           <th>Delivery Date</th>
                           <th style={{ minWidth: '200px' }}>Cancellation Remarks</th>
                           <th style={{ minWidth: '85px' }}>Action</th>
@@ -999,7 +1220,7 @@
                             <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{o.delivery_date || '—'}</td>
                             <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', minWidth: '200px' }}>{o.remarks || '—'}</td>
                             <td style={{ minWidth: '85px' }}>
-                              <button onClick={() => setSelectedOrder(o)} style={{ padding: '0.3rem 0.75rem', borderRadius: '6px', background: isSuperAdmin ? 'linear-gradient(135deg,rgba(244,63,94,0.25),rgba(225,29,72,0.25))' : 'rgba(100,116,139,0.15)', border: `1px solid ${isSuperAdmin ? 'rgba(244,63,94,0.5)' : 'rgba(100,116,139,0.3)'}`, color: isSuperAdmin ? 'var(--accent-rose)' : 'var(--text-secondary)', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              <button onClick={() => setSelectedOrder(o)} style={{ padding: '0.3rem 0.75rem', borderRadius: '6px', background: 'rgba(244,63,94,0.15)', border: '1px solid rgba(244,63,94,0.3)', color: '#f43f5e', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                                 {isSuperAdmin ? '✏️ Edit' : '👁️ View'}
                               </button>
                             </td>
@@ -1008,119 +1229,55 @@
                       </tbody>
                     </table>
                   </div>
-
                 </div>
               );
             })()}
 
-            {/* ── CUSTOMERS DIRECTORY TAB ── */}
-            {activeTab === 'customers' && (() => {
-              const customerMap = {};
-              visibleOrders.forEach(o => {
-                const name = o.customer_name || 'Unknown';
-                if (!customerMap[name]) {
-                  customerMap[name] = { name, orders: [], cities: new Set(), active: 0, cancelled: 0, contact: o.customer_contact || '—' };
-                }
-                customerMap[name].orders.push(o);
-                customerMap[name].cities.add(o.city);
-                if (o.is_cancelled) customerMap[name].cancelled++;
-                else customerMap[name].active++;
-              });
-              const customers = Object.values(customerMap);
-              const filtered = customers.filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()));
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                  <div>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>🏢 Customer Directory ({filtered.length})</h2>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>All clients with active and historical Kreativicon ISP circuit orders.</p>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.25rem' }}>
-                    {filtered.length === 0 ? (
-                      <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No customers match your search.</div>
-                    ) : filtered.map((c, idx) => (
-                      <div key={idx} className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', borderLeft: '4px solid var(--accent-blue)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div>
-                            <h3 style={{ fontSize: '0.95rem', fontWeight: 800 }}>{c.name}</h3>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>{c.contact}</p>
-                          </div>
-                          <span style={{ padding: '2px 8px', borderRadius: '9999px', background: 'rgba(59,130,246,0.15)', color: 'var(--accent-blue)', fontSize: '0.72rem', fontWeight: 700 }}>{c.orders.length} orders</span>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', background: 'var(--bg-primary)', padding: '0.75rem', borderRadius: '8px' }}>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#10b981' }}>{c.active}</div>
-                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Active Orders</div>
-                          </div>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f43f5e' }}>{c.cancelled}</div>
-                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Cancelled</div>
-                          </div>
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                          📍 Cities: <strong>{[...c.cities].join(', ')}</strong>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
+            {/* ── ENGINEER WORKLOAD & USER MANAGEMENT TAB ── */}
             {activeTab === 'engineers' && (() => {
-              const engMap = {};
-              visibleOrders.forEach(o => {
-                const name = o.assigned_to || 'Unassigned';
-                if (!engMap[name]) {
-                  engMap[name] = {
-                    name,
-                    orders: [],
-                    installing: 0,
-                    delivered: 0,
-                    pending: 0
-                  };
-                }
-                engMap[name].orders.push(o);
-                if (o.order_status.includes('Installation')) engMap[name].installing++;
-                else if (o.order_status.startsWith('Delivered')) engMap[name].delivered++;
-                else engMap[name].pending++;
+              const engineersList = accounts.filter(a => a.role === 'Engineer');
+              const engList = engineersList.map(eng => {
+                const myOrders = orders.filter(o => !o.is_cancelled && o.assigned_to === eng.name);
+                return {
+                  ...eng,
+                  orders: myOrders,
+                  installing: myOrders.filter(o => o.order_status.includes('Installation')).length,
+                  delivered: myOrders.filter(o => o.order_status.startsWith('Delivered')).length,
+                  pending: myOrders.filter(o => o.order_status.includes('Pending') || o.order_status.includes('TWAL')).length
+                };
               });
-
-              // Filter engineer cards if logged in as Engineer
-              const engList = Object.values(engMap).filter(eng => !isEngineer || eng.name === currentAccount.name);
 
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
                     <div>
-                      <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>
-                        {isEngineer ? `👷 My Engineer Profile (${currentAccount.name})` : '👷 Engineer Workload & Account Management'}
-                      </h2>
+                      <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>👷 Engineer Workload & User Accounts</h2>
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                        {isEngineer ? `Viewing assigned projects and installation workload for ${currentAccount.email}` : 'Track assigned Microwave field installation engineers, site dispatches, and user accounts.'}
+                        Manage engineering team dispatches, circuit assignments, and user role access.
                       </p>
                     </div>
                     {isSuperAdmin && (
                       <button
                         onClick={() => setIsCreateUserModalOpen(true)}
-                        style={{ padding: '0.5rem 1.1rem', background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)' }}
+                        style={{ padding: '0.5rem 1.1rem', background: 'linear-gradient(135deg, #a855f7, #d946ef)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', boxShadow: '0 4px 12px rgba(168, 85, 247, 0.3)' }}
                       >
                         👤 Create Engineer / Viewer Account
                       </button>
                     )}
                   </div>
 
-                  {/* Accounts List Section for Super Admin Only */}
+                  {/* System User Accounts List (Super Admin only) */}
                   {isSuperAdmin && (
                     <div className="glass-panel" style={{ padding: '1.25rem' }}>
-                      <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>👥 Active User Accounts ({accounts.length})</h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.8rem' }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>👥 System User Accounts ({accounts.length})</h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0.8rem' }}>
                         {accounts.map(acc => (
                           <div key={acc.id} style={{ padding: '0.75rem', borderRadius: '8px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: acc.role === 'Super Admin' ? 'rgba(59, 130, 246, 0.2)' : acc.role === 'Engineer' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(139, 92, 246, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+                            <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: acc.role === 'Super Admin' ? 'rgba(217, 70, 239, 0.2)' : acc.role === 'Engineer' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(56, 189, 248, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.1rem' }}>
                               {acc.role === 'Super Admin' ? '👑' : acc.role === 'Engineer' ? '👷' : '👁️'}
                             </div>
                             <div>
-                              <strong style={{ fontSize: '0.88rem', display: 'block' }}>{acc.name}</strong>
+                              <strong style={{ fontSize: '0.88rem', display: 'block', color: 'var(--text-primary)' }}>{acc.name}</strong>
                               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{acc.role} • {acc.email}</span>
                             </div>
                           </div>
@@ -1129,165 +1286,122 @@
                     </div>
                   )}
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
-                    {engList.length === 0 ? (
-                      <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                        <h3>No projects currently assigned to {currentAccount.name}</h3>
-                      </div>
-                    ) : (
-                      engList.map((eng, idx) => (
-                        <div key={idx} className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', borderLeft: eng.name === 'Unassigned' ? '4px solid #f59e0b' : '4px solid #3b82f6' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: eng.name === 'Unassigned' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(59, 130, 246, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>
-                                👷
-                              </div>
-                              <div>
-                                <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>{eng.name}</h3>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Field Engineer • {currentAccount.email}</span>
-                              </div>
-                            </div>
-                            <span style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-blue)' }}>
-                              {eng.orders.length} <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>orders</span>
-                            </span>
-                          </div>
-
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', textAlign: 'center', background: 'var(--bg-primary)', padding: '0.75rem', borderRadius: '8px' }}>
-                            <div>
-                              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'block' }}>Installing</span>
-                              <strong style={{ fontSize: '1.1rem', color: '#f59e0b' }}>{eng.installing}</strong>
+                  {/* Engineer Cards Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.25rem' }}>
+                    {engList.map((eng, idx) => (
+                      <div key={idx} className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', borderLeft: '4px solid #10b981' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem' }}>
+                              👷
                             </div>
                             <div>
-                              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'block' }}>Delivered</span>
-                              <strong style={{ fontSize: '1.1rem', color: '#3b82f6' }}>{eng.delivered}</strong>
-                            </div>
-                            <div>
-                              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'block' }}>Pending</span>
-                              <strong style={{ fontSize: '1.1rem', color: '#8b5cf6' }}>{eng.pending}</strong>
+                              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>{eng.name}</h3>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Field Engineer • {eng.email}</span>
                             </div>
                           </div>
+                          <span style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-blue)' }}>
+                            {eng.orders.length} <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>circuits</span>
+                          </span>
+                        </div>
 
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', textAlign: 'center', background: 'var(--bg-primary)', padding: '0.75rem', borderRadius: '8px' }}>
                           <div>
-                            <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>My Assigned Circuits & Connections:</h4>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '240px', overflowY: 'auto' }}>
-                              {eng.orders.map(o => (
-                                <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.75rem', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', fontSize: '0.8rem' }}>
-                                  <div>
-                                    <strong style={{ color: 'var(--accent-blue)', display: 'block' }}>{o.ki_id}</strong>
-                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{o.customer_name} ({o.city})</span>
-                                  </div>
-                                  <span className="badge badge-installation">{o.order_status}</span>
-                                </div>
-                              ))}
-                            </div>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'block' }}>Installing</span>
+                            <strong style={{ fontSize: '1.1rem', color: '#f59e0b' }}>{eng.installing}</strong>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'block' }}>Delivered</span>
+                            <strong style={{ fontSize: '1.1rem', color: '#3b82f6' }}>{eng.delivered}</strong>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'block' }}>Pending</span>
+                            <strong style={{ fontSize: '1.1rem', color: '#8b5cf6' }}>{eng.pending}</strong>
                           </div>
                         </div>
-                      ))
-                    )}
+
+                        <div>
+                          <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Assigned Microwave Connections ({eng.orders.length}):</h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '240px', overflowY: 'auto' }}>
+                            {eng.orders.length === 0 ? (
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No circuits assigned to this engineer.</div>
+                            ) : eng.orders.map(o => (
+                              <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.75rem', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', fontSize: '0.8rem' }}>
+                                <div>
+                                  <strong style={{ color: 'var(--accent-blue)', display: 'block' }}>{o.ki_id}</strong>
+                                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{o.customer_name} ({o.city})</span>
+                                </div>
+                                <span className="badge badge-installation">{o.order_status}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
             })()}
 
-            {activeTab === 'email' && (
+            {/* ── EXCEL TAB ── */}
+            {activeTab === 'excel' && !isEngineer && (
+              <ExcelTab orders={orders} setOrders={setOrders} isSuperAdmin={isSuperAdmin} />
+            )}
+
+            {/* ── EMAIL REPORTS TAB ── */}
+            {activeTab === 'email' && !isEngineer && (
               <div className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                   <div>
                     <h2 style={{ fontSize: '1.3rem', fontWeight: 800 }}>📧 Management Automated Email Reporting</h2>
                     <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                      Generate and send automated daily/weekly KPI summary reports to executive stakeholders.
+                      Generate and dispatch automated daily/weekly KPI summary reports to executive stakeholders.
                     </p>
                   </div>
-                  <button onClick={() => alert('Daily Executive Summary Email dispatched to management list!')} style={{ padding: '0.6rem 1.4rem', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}>
+                  <button onClick={() => alert('Executive Summary Email report dispatched to management!')} style={{ padding: '0.6rem 1.4rem', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}>
                     ✉️ Dispatch Report Now
                   </button>
                 </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-primary)', padding: '1.25rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-                    <h3 style={{ fontSize: '0.95rem', fontWeight: 700 }}>⚙️ Email Configuration</h3>
-                    <div>
-                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.3rem' }}>Recipients List</label>
-                      <input type="text" defaultValue="management@kreativicon.com, ops@kreativicon.com" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', fontSize: '0.85rem' }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.3rem' }}>Report Frequency</label>
-                      <select style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', fontSize: '0.85rem' }}>
-                        <option>Daily at 08:00 AM (Saudi Standard Time)</option>
-                        <option>Weekly (Every Sunday Morning)</option>
-                        <option>Realtime Trigger on Major Milestones</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.3rem' }}>Include Modules</label>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem' }}>
-                        <label><input type="checkbox" defaultChecked /> 📊 KPI Summary & CLOS Rate</label>
-                        <label><input type="checkbox" defaultChecked /> 👷 Engineer Workload & Dispatch</label>
-                        <label><input type="checkbox" defaultChecked /> 🏙️ Regional & City Breakdown</label>
-                        <label><input type="checkbox" defaultChecked /> 🚫 Cancelled Orders Audit</label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ background: 'var(--bg-primary)', padding: '1.25rem', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>PREVIEW HTML TEMPLATE</span>
-                      <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700 }}>Ready to Send</span>
-                    </div>
-                    <div style={{ background: '#ffffff', color: '#0f172a', padding: '1rem', borderRadius: '8px', fontSize: '0.8rem', fontFamily: 'sans-serif' }}>
-                      <div style={{ borderBottom: '2px solid #3b82f6', paddingBottom: '0.5rem', marginBottom: '0.75rem', fontWeight: 800, color: '#1e3a8a', fontSize: '1rem' }}>
-                        Kreativicon ISP — Daily Management Summary
-                      </div>
-                      <p>Dear Management Team,</p>
-                      <p style={{ marginTop: '0.4rem' }}>Here is your automated daily operations report:</p>
-                      <ul style={{ marginTop: '0.4rem', paddingLeft: '1.2rem' }}>
-                        <li><strong>Total Active Orders:</strong> {activeOrders.length}</li>
-                        <li><strong>LOS CLOS Rate:</strong> {activeCount > 0 ? ((closCount / activeCount) * 100).toFixed(1) : 0}%</li>
-                        <li><strong>In MW Installation:</strong> {installingCount} circuits</li>
-                        <li><strong>Delivered:</strong> {deliveredCount} circuits</li>
-                      </ul>
-                      <p style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#64748b' }}>Generated automatically by Kreativicon ISP Enterprise Platform.</p>
-                    </div>
-                  </div>
+                <div style={{ background: '#ffffff', color: '#0f172a', padding: '1.25rem', borderRadius: '8px', fontSize: '0.85rem' }}>
+                  <h3 style={{ fontSize: '1rem', color: '#1e3a8a', marginBottom: '0.5rem', fontWeight: 800 }}>Kreativicon ISP — Executive Summary Report</h3>
+                  <p>Daily operational metrics summary for management review:</p>
+                  <ul style={{ margin: '0.5rem 0', paddingLeft: '1.2rem' }}>
+                    <li><strong>Total Active Circuits:</strong> {activeCount}</li>
+                    <li><strong>LOS CLOS Pass Rate:</strong> {activeCount > 0 ? ((closCount/activeCount)*100).toFixed(1) : 0}%</li>
+                    <li><strong>Under Installation:</strong> {installingCount}</li>
+                    <li><strong>Delivered:</strong> {deliveredCount}</li>
+                  </ul>
                 </div>
               </div>
             )}
 
-            {isSuperAdmin && activeTab === 'audit' && (
+            {/* ── AUDIT LOG TAB (SUPER ADMIN ONLY) ── */}
+            {activeTab === 'audit' && isSuperAdmin && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>📜 System Audit Log</h2>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>📜 System Audit Trail Log</h2>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                      Immutable historical audit trail of all user actions, order state transitions, and Excel syncs.
+                      Immutable historical audit trail of user access, order changes, and Excel database syncs.
                     </p>
                   </div>
-                  <span style={{ padding: '0.4rem 0.9rem', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', fontWeight: 700, fontSize: '0.8rem' }}>
-                    🔒 Enterprise Logging Enabled
-                  </span>
                 </div>
-
-                <div className="glass-panel" style={{ overflowX: 'auto' }}>
+                <div className="glass-panel table-wrap">
                   <table className="custom-table">
                     <thead>
                       <tr>
                         <th>Timestamp</th>
-                        <th>User / Role</th>
+                        <th>User</th>
                         <th>Action</th>
                         <th>Target Resource</th>
-                        <th>Details / Changes</th>
-                        <th>IP Address</th>
+                        <th>Details</th>
                       </tr>
                     </thead>
                     <tbody>
                       {[
-                        { time: '2026-07-29 09:55:00', user: currentAccount.name, action: 'Role Context', target: 'Access Control', details: `Viewing system under role scope ${currentAccount.role}`, ip: '192.168.1.45' },
-                        { time: '2026-07-28 18:25:05', user: 'Super Admin', action: 'Filter Split', target: 'Orders / Cancelled', details: 'Segregated active and cancelled orders into dedicated views', ip: '192.168.1.45' },
-                        { time: '2026-07-28 16:13:03', user: 'System Bot', action: 'HTTP Server Started', target: 'App Shell', details: 'Powered by PowerShell Native HTTP Listener on port 8080', ip: '127.0.0.1' },
-                        { time: '2026-07-28 12:48:14', user: 'OrderSeeder', action: 'Excel Data Import', target: 'PostgreSQL DB', details: 'Imported 18 orders from KI_Orders_with_Summary_Updated (4).xlsx', ip: 'Local Engine' },
-                        { time: '2026-07-27 14:10:00', user: 'Haroon (Engineer)', action: 'Status Update', target: 'KIC-002-MW-MEL-STC', details: 'Changed Active Status to Delivered / CR Pending', ip: '10.200.4.12' },
-                        { time: '2026-07-26 09:30:12', user: 'Shukoor (Engineer)', action: 'Installation Complete', target: 'KIC-003-MW-MEL-STC', details: 'Completed physical microwave installation', ip: '10.200.4.19' },
-                        { time: '2026-07-21 11:15:44', user: 'Haroon (Engineer)', action: 'Flagged Pending', target: 'KIC-008-MW-MEL-Mobily', details: 'Set Active Status to Pending Due to IP issues at Mobily End', ip: '10.200.4.12' }
+                        { time: new Date().toISOString().replace('T',' ').substring(0,19), user: currentUser.name, action: 'User Authenticated', target: 'Security Portal', details: `Logged in under role ${currentUser.role}` },
+                        { time: '2026-07-28 12:48:14', user: 'Hassan Saleem', action: 'Excel Data Sync', target: 'Live Database', details: 'Uploaded and merged project circuits from Excel file' },
+                        { time: '2026-07-27 14:10:00', user: 'Haroon (Engineer)', action: 'Status Update', target: 'KIC-002-MW-MEL-STC', details: 'Changed status to Delivered / CR Pending' }
                       ].map((log, i) => (
                         <tr key={i}>
                           <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{log.time}</td>
@@ -1295,7 +1409,6 @@
                           <td><span className="badge badge-activation">{log.action}</span></td>
                           <td style={{ fontWeight: 800, color: 'var(--accent-blue)' }}>{log.target}</td>
                           <td style={{ fontSize: '0.82rem' }}>{log.details}</td>
-                          <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{log.ip}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1304,208 +1417,58 @@
               </div>
             )}
 
-            {activeTab === 'excel' && <ExcelTab orders={orders} setOrders={setOrders} />}
-
           </main>
 
-          {/* View / Edit Connection Modal */}
+          {/* Super Admin Modal: Edit Order / View Order */}
           {selectedOrder && (
-            <div onClick={(e) => e.target === e.currentTarget && setSelectedOrder(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
+            <div onClick={(e) => e.target === e.currentTarget && setSelectedOrder(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
               <div className="glass-panel" style={{ width: '100%', maxWidth: '750px', maxHeight: '90vh', padding: '1.75rem', overflowY: 'auto' }}>
-                
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-                  <div>
-                    <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-blue)' }}>
-                      {isSuperAdmin ? '✏️ Edit Connection Details' : '👁️ Connection Details'} — {selectedOrder.ki_id}
-                    </h3>
-                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                      {isSuperAdmin ? 'Super Admin Privileges Active: Full Edit Access' : 'Read-only view mode'}
-                    </p>
-                  </div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-blue)' }}>
+                    {isSuperAdmin ? '✏️ Edit Project Connection' : '👁️ View Connection Details'} — {selectedOrder.ki_id}
+                  </h3>
                   <button onClick={() => setSelectedOrder(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.4rem', cursor: 'pointer' }}>✕</button>
                 </div>
 
-                <form onSubmit={isSuperAdmin ? handleSaveEditedOrder : (e) => { e.preventDefault(); setSelectedOrder(null); }}>
+                <form onSubmit={handleSaveEditedOrder}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.85rem' }}>
-                    
-                    <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>SL No</label>
-                      <input
-                        type="text"
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.sl_no || ''}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, sl_no: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                      />
-                    </div>
-
                     <div>
                       <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>KI ID</label>
-                      <input
-                        type="text"
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.ki_id || ''}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, ki_id: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--accent-blue)', fontWeight: 800 }}
-                      />
+                      <input disabled={!isSuperAdmin} type="text" value={selectedOrder.ki_id || ''} onChange={(e) => setSelectedOrder({ ...selectedOrder, ki_id: e.target.value })} style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Order Received Date</label>
-                      <input
-                        type="date"
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.order_received || ''}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, order_received: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>CWO Date</label>
-                      <input
-                        type="date"
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.cwo_date || ''}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, cwo_date: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Installation Start Date</label>
-                      <input
-                        type="date"
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.installation_start || ''}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, installation_start: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Installation Complete Date</label>
-                      <input
-                        type="date"
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.installation_complete || ''}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, installation_complete: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Delivery Date</label>
-                      <input
-                        type="date"
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.delivery_date || ''}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, delivery_date: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                      />
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Customer Name</label>
+                      <input disabled={!isSuperAdmin} type="text" value={selectedOrder.customer_name || ''} onChange={(e) => setSelectedOrder({ ...selectedOrder, customer_name: e.target.value })} style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
                     </div>
 
                     <div>
                       <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Region</label>
-                      <select
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.region || 'CENTRAL'}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, region: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                      >
+                      <select disabled={!isSuperAdmin} value={selectedOrder.region || 'CENTRAL'} onChange={(e) => setSelectedOrder({ ...selectedOrder, region: e.target.value })} style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}>
                         <option value="CENTRAL">CENTRAL</option>
                         <option value="EAST">EAST</option>
                         <option value="WEST">WEST</option>
-                        <option value="NORTH">NORTH</option>
-                        <option value="SOUTH">SOUTH</option>
                       </select>
                     </div>
 
                     <div>
                       <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>City</label>
-                      <input
-                        type="text"
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.city || ''}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, city: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Customer Name</label>
-                      <input
-                        type="text"
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.customer_name || ''}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, customer_name: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', fontWeight: 700 }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Customer Contact</label>
-                      <input
-                        type="text"
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.customer_contact || ''}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, customer_contact: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                      />
+                      <input disabled={!isSuperAdmin} type="text" value={selectedOrder.city || ''} onChange={(e) => setSelectedOrder({ ...selectedOrder, city: e.target.value })} style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
                     </div>
 
                     <div>
                       <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Bandwidth (BW)</label>
-                      <input
-                        type="text"
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.bw || ''}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, bw: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--accent-cyan)', fontWeight: 700 }}
-                      />
+                      <input disabled={!isSuperAdmin} type="text" value={selectedOrder.bw || ''} onChange={(e) => setSelectedOrder({ ...selectedOrder, bw: e.target.value })} style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>LOS Status</label>
-                      <select
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.los_status || ''}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, los_status: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                      >
-                        <option value="CLOS">CLOS (Completed Line of Sight)</option>
-                        <option value="Open">Open</option>
-                        <option value="Pending">Pending</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Active Status (Workflow)</label>
-                      <select
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.order_status || 'Under MW Installation'}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, order_status: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--accent-amber)', fontWeight: 700 }}
-                      >
-                        <option value="Under MW Installation">Under MW Installation</option>
-                        <option value="Under Activation">Under Activation</option>
-                        <option value="Under TWAL Approval">Under TWAL Approval</option>
-                        <option value="Delivered">Delivered</option>
-                        <option value="Delivered /CR Pending">Delivered / CR Pending</option>
-                        <option value="Pending Due to Ip issues at Mobily End">Pending Due to IP issues at Mobily End</option>
-                        <option value="Cancelled">Cancelled</option>
-                        <option value="Not Yet Set">Not Yet Set</option>
-                      </select>
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Active Workflow Status</label>
+                      <input disabled={!isSuperAdmin} type="text" value={selectedOrder.order_status || ''} onChange={(e) => setSelectedOrder({ ...selectedOrder, order_status: e.target.value })} style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
                     </div>
 
                     <div>
                       <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Assigned Engineer</label>
-                      <select
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.assigned_to || 'Unassigned'}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, assigned_to: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                      >
+                      <select disabled={!isSuperAdmin} value={selectedOrder.assigned_to || 'Unassigned'} onChange={(e) => setSelectedOrder({ ...selectedOrder, assigned_to: e.target.value })} style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}>
                         {accounts.filter(a => a.role === 'Engineer').map(eng => (
                           <option key={eng.id} value={eng.name}>{eng.name}</option>
                         ))}
@@ -1514,46 +1477,28 @@
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Is Cancelled Order?</label>
-                      <select
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.is_cancelled ? 'true' : 'false'}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, is_cancelled: e.target.value === 'true' })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: selectedOrder.is_cancelled ? '#f43f5e' : '#10b981', fontWeight: 700 }}
-                      >
-                        <option value="false">Active Order</option>
-                        <option value="true">Cancelled Order</option>
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Is Cancelled Project?</label>
+                      <select disabled={!isSuperAdmin} value={selectedOrder.is_cancelled ? 'true' : 'false'} onChange={(e) => setSelectedOrder({ ...selectedOrder, is_cancelled: e.target.value === 'true' })} style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: selectedOrder.is_cancelled ? '#f43f5e' : '#10b981', fontWeight: 700 }}>
+                        <option value="false">Active Project</option>
+                        <option value="true">Cancelled Project</option>
                       </select>
                     </div>
 
                     <div style={{ gridColumn: 'span 2' }}>
                       <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Circuit ID</label>
-                      <input
-                        type="text"
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.circuit_id || ''}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, circuit_id: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                      />
+                      <input disabled={!isSuperAdmin} type="text" value={selectedOrder.circuit_id || ''} onChange={(e) => setSelectedOrder({ ...selectedOrder, circuit_id: e.target.value })} style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
                     </div>
 
                     <div style={{ gridColumn: 'span 2' }}>
                       <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem', color: 'var(--text-secondary)' }}>Remarks / Notes</label>
-                      <textarea
-                        rows="3"
-                        disabled={!isSuperAdmin}
-                        value={selectedOrder.remarks || ''}
-                        onChange={(e) => setSelectedOrder({ ...selectedOrder, remarks: e.target.value })}
-                        style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                      />
+                      <textarea rows="3" disabled={!isSuperAdmin} value={selectedOrder.remarks || ''} onChange={(e) => setSelectedOrder({ ...selectedOrder, remarks: e.target.value })} style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
                     </div>
-
                   </div>
 
                   <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
                     {isSuperAdmin ? (
-                      <button type="submit" style={{ flex: 1, padding: '0.65rem', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}>
-                        💾 Save All Changes
+                      <button type="submit" style={{ flex: 1, padding: '0.65rem', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
+                        💾 Save Changes
                       </button>
                     ) : (
                       <button type="button" onClick={() => setSelectedOrder(null)} style={{ flex: 1, padding: '0.65rem', background: 'var(--accent-blue)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
@@ -1568,7 +1513,7 @@
 
           {/* Super Admin Modal: Add New Connection Project */}
           {isAddModalOpen && (
-            <div onClick={(e) => e.target === e.currentTarget && setIsAddModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
+            <div onClick={(e) => e.target === e.currentTarget && setIsAddModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
               <div className="glass-panel" style={{ width: '100%', maxWidth: '700px', maxHeight: '90vh', padding: '1.75rem', overflowY: 'auto' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-blue)' }}>➕ Add New Connection Project</h3>
@@ -1631,25 +1576,9 @@
                       <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem' }}>Customer Contact</label>
                       <input type="text" placeholder="Name & Phone" value={newOrder.customer_contact} onChange={(e) => setNewOrder({ ...newOrder, customer_contact: e.target.value })} style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
                     </div>
-                    <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem' }}>CWO Date</label>
-                      <input type="date" value={newOrder.cwo_date} onChange={(e) => setNewOrder({ ...newOrder, cwo_date: e.target.value })} style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem' }}>Installation Start Date</label>
-                      <input type="date" value={newOrder.installation_start} onChange={(e) => setNewOrder({ ...newOrder, installation_start: e.target.value })} style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem' }}>Installation Complete Date</label>
-                      <input type="date" value={newOrder.installation_complete} onChange={(e) => setNewOrder({ ...newOrder, installation_complete: e.target.value })} style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.2rem' }}>Delivery Date</label>
-                      <input type="date" value={newOrder.delivery_date} onChange={(e) => setNewOrder({ ...newOrder, delivery_date: e.target.value })} style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
-                    </div>
                   </div>
 
-                  <button type="submit" style={{ marginTop: '1.5rem', width: '100%', padding: '0.65rem', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
+                  <button type="submit" style={{ marginTop: '1.5rem', width: '100%', padding: '0.65rem', background: 'linear-gradient(135deg, #a855f7, #d946ef)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
                     Add Connection Project
                   </button>
                 </form>
@@ -1657,9 +1586,9 @@
             </div>
           )}
 
-          {/* Super Admin Modal: Create User Account (Viewer / Engineer) */}
+          {/* Super Admin Modal: Create User Account */}
           {isCreateUserModalOpen && (
-            <div onClick={(e) => e.target === e.currentTarget && setIsCreateUserModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
+            <div onClick={(e) => e.target === e.currentTarget && setIsCreateUserModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
               <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '1.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-purple)' }}>👤 Create New User Account</h3>
@@ -1676,19 +1605,24 @@
                     <div>
                       <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem' }}>Role *</label>
                       <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}>
-                        <option value="Engineer">Engineer (Assigned Projects Access)</option>
-                        <option value="Viewer">Viewer (Read-Only Access)</option>
-                        <option value="Super Admin">Super Admin (Full Master Access)</option>
+                        <option value="Engineer">Engineer (Assigned Projects Scope)</option>
+                        <option value="Viewer">Viewer (Read-Only Scope)</option>
+                        <option value="Super Admin">Super Admin (Full Master Control)</option>
                       </select>
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem' }}>Email Address *</label>
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem' }}>Email Address (Login Username) *</label>
                       <input required type="email" placeholder="e.g. tariq@kreativicon.com" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem' }}>Password *</label>
+                      <input required type="text" placeholder="Set password" value={newUser.pass} onChange={(e) => setNewUser({ ...newUser, pass: e.target.value })} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
                     </div>
                   </div>
 
-                  <button type="submit" style={{ marginTop: '1.5rem', width: '100%', padding: '0.65rem', background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
+                  <button type="submit" style={{ marginTop: '1.5rem', width: '100%', padding: '0.65rem', background: 'linear-gradient(135deg, #a855f7, #d946ef)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
                     Create Account
                   </button>
                 </form>
