@@ -1,71 +1,39 @@
-# Installation & Operations Guide
+# 📦 Enterprise Installation & Deployment Guide
 
-## Kreativicon ISP Order & Project Management System
-
-This document provides step-by-step instructions for deploying and running the application in local development, staging, or production environments.
-
----
-
-## Prerequisites
-
-1. **Docker & Docker Compose** (Recommended for production):
-   - Docker Engine v24+
-   - Docker Compose v2+
-2. **Native Environment (Optional)**:
-   - Node.js v18+ & npm
-   - PHP v8.2+ & Composer
-   - PostgreSQL v15+
+## 1. Overview
+The **Kreativ Icon ISP Order & Project Management System** is a full-stack web application designed for containerized cloud deployment on **Railway**, **Render**, **AWS ECS**, or self-hosted **Docker** environments.
 
 ---
 
-## Option 1: Docker Deployment (Recommended)
+## 2. Environment Variables
 
-To spin up the entire application container stack (Frontend Web App, Laravel REST API, PostgreSQL database, Mailpit SMTP server):
+| Variable | Description | Default / Example |
+|---|---|---|
+| `PORT` | Server HTTP listening port | `8080` |
+| `NODE_ENV` | Environment mode | `production` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgres://user:pass@host:5432/db` |
 
+*Note: If `DATABASE_URL` is omitted, the application automatically uses a local SQLite database (`data/kreativicon.sqlite`), requiring zero setup.*
+
+---
+
+## 3. Railway Cloud Deployment
+1. Connect your GitHub repository to [Railway](https://railway.app).
+2. Railway detects `railway.json` and builds via the multi-stage `Dockerfile`.
+3. Add a PostgreSQL database plugin in Railway. Railway automatically injects `DATABASE_URL`.
+4. The backend automatically creates the database schema and seeds default accounts (`Hassan Saleem`, `Haroon`, `Shukoor`, `Viewer User`) and initial circuit orders upon first launch.
+
+---
+
+## 4. Docker Compose Deployment
 ```bash
-# 1. Clone repository & enter workspace
-cd "e:/Project Automation"
-
-# 2. Build and launch Docker containers
 docker-compose up -d --build
-
-# 3. Access Application Services
-# Frontend & App: http://localhost
-# Mailpit Email UI: http://localhost:8025
-# PostgreSQL DB: localhost:5432
 ```
+This spins up:
+- Node.js Express + React Application Service (`:8080`)
+- PostgreSQL 16 Alpine Database Service (`:5432`)
 
 ---
 
-## Option 2: Local Development Setup
-
-### 1. Frontend Web App Setup
-
-```bash
-cd frontend
-npm install
-npm run dev
-# App will run at http://localhost:3000
-```
-
-### 2. Laravel Backend Setup
-
-```bash
-cd backend
-composer install
-cp .env.example .env
-php artisan key:generate
-php artisan migrate --seed
-php artisan serve
-# REST API will run at http://localhost:8000
-```
-
----
-
-## Database Seeding from Source of Truth
-
-The database is pre-configured with the `OrderSeeder.php` class containing all 18 records extracted directly from `KI_Orders_with_Summary_Updated (4).xlsx`.
-
-```bash
-php artisan db:seed --class=OrderSeeder
-```
+## 5. Verification
+Open `http://localhost:8080` or your Railway domain to access the application.

@@ -1253,7 +1253,7 @@
               </div>
             )}
 
-            {activeTab === 'audit' && (
+            {isSuperAdmin && activeTab === 'audit' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
@@ -1310,7 +1310,7 @@
 
           {/* View / Edit Connection Modal */}
           {selectedOrder && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
+            <div onClick={(e) => e.target === e.currentTarget && setSelectedOrder(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
               <div className="glass-panel" style={{ width: '100%', maxWidth: '750px', maxHeight: '90vh', padding: '1.75rem', overflowY: 'auto' }}>
                 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
@@ -1568,7 +1568,7 @@
 
           {/* Super Admin Modal: Add New Connection Project */}
           {isAddModalOpen && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
+            <div onClick={(e) => e.target === e.currentTarget && setIsAddModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
               <div className="glass-panel" style={{ width: '100%', maxWidth: '700px', maxHeight: '90vh', padding: '1.75rem', overflowY: 'auto' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-blue)' }}>➕ Add New Connection Project</h3>
@@ -1659,7 +1659,7 @@
 
           {/* Super Admin Modal: Create User Account (Viewer / Engineer) */}
           {isCreateUserModalOpen && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
+            <div onClick={(e) => e.target === e.currentTarget && setIsCreateUserModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
               <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '1.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-purple)' }}>👤 Create New User Account</h3>

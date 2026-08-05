@@ -4,34 +4,27 @@
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm ci || npm install
+RUN npm install
 COPY frontend/ ./
 RUN npm run build
 
-# Stage 2: Production PHP Runtime Engine
-FROM php:8.3-fpm-alpine
-WORKDIR /var/www
+# Stage 2: Production Node.js Server
+FROM node:20-alpine AS production
+WORKDIR /app
 
-# Install system dependencies
-RUN apk add --no-gradient --no-cache \
-    nginx \
-    postgresql-dev \
-    libzip-dev \
-    zip \
-    unzip \
-    curl \
-    supervisor
+# Copy package manifests & install production dependencies
+COPY package*.json ./
+RUN npm install --only=production
 
-# Install PHP extensions
-RUN docker-php-ext-install pdo pdo_pgsql zip
+# Copy server application & compiled frontend dist
+COPY server.js ./
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+COPY index.html ./
+COPY kreativ_icon_logo.png ./
 
-# Copy Backend Files
-COPY backend/ /var/www/
-COPY --from=frontend-builder /app/frontend/dist /var/www/public_web
+# Set environment defaults
+EXPOSE 8080
+ENV PORT=8080
+ENV NODE_ENV=production
 
-# Copy Nginx Configuration
-COPY nginx.conf /etc/nginx/http.d/default.conf
-
-EXPOSE 80 3000
-
-CMD ["sh", "-c", "nginx && php-fpm"]
+CMD ["node", "server.js"]

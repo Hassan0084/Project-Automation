@@ -28,19 +28,50 @@ export const App: React.FC = () => {
   const [orderToEdit, setOrderToEdit] = useState<Order | null>(null);
   const [isNewOrderModalOpen, setIsNewOrderModalOpen] = useState<boolean>(false);
 
+  // Load from API on Mount
+  useEffect(() => {
+    fetch('/api/orders')
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then((data: Order[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setOrders(data);
+        }
+      })
+      .catch(() => console.log('Using local order state fallback'));
+
+    fetch('/api/audit-logs')
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then((logs: AuditLogItem[]) => {
+        if (Array.isArray(logs) && logs.length > 0) {
+          setAuditLogs(logs);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Apply Theme
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
   // Handlers
-  const handleSaveOrder = (savedOrder: Order) => {
+  const handleSaveOrder = async (savedOrder: Order) => {
     const exists = orders.some(o => o.id === savedOrder.id);
     let updatedList: Order[];
     if (exists) {
       updatedList = orders.map(o => o.id === savedOrder.id ? savedOrder : o);
+      fetch(`/api/orders/${savedOrder.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(savedOrder)
+      }).catch(() => {});
     } else {
       updatedList = [savedOrder, ...orders];
+      fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(savedOrder)
+      }).catch(() => {});
     }
 
     setOrders(updatedList);
@@ -68,6 +99,12 @@ export const App: React.FC = () => {
 
   const handleImportOrders = (importedList: Order[]) => {
     setOrders(importedList);
+    fetch('/api/orders/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orders: importedList })
+    }).catch(() => {});
+
     const newLog: AuditLogItem = {
       id: `audit-${Date.now()}`,
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
@@ -75,7 +112,7 @@ export const App: React.FC = () => {
       role: currentRole,
       action: 'Excel Import',
       target: 'Orders Database',
-      details: 'Bulk imported new orders from Excel file',
+      details: `Bulk imported ${importedList.length} orders from Excel file`,
       ip_address: '127.0.0.1'
     };
     setAuditLogs([newLog, ...auditLogs]);
@@ -172,6 +209,11 @@ export const App: React.FC = () => {
             const newList = orders.map(o => o.id === updated.id ? updated : o);
             setOrders(newList);
             setSelectedOrder(updated);
+            fetch(`/api/orders/${updated.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(updated)
+            }).catch(() => {});
           }}
         />
       )}
@@ -195,7 +237,7 @@ export const App: React.FC = () => {
         color: 'var(--text-muted)',
         background: 'var(--bg-secondary)'
       }}>
-        Kreativicon ISP Order & Project Management System © 2026. Production Ready • Powered by Laravel & React
+        Kreativ Icon ISP Order & Project Management System © 2026. Production Ready • Powered by Express API & React Vite
       </footer>
 
     </div>
