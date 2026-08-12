@@ -267,13 +267,20 @@
               }
             });
 
-            // FINAL DEDUPLICATION
+            // FINAL DEDUPLICATION & NUMERICAL SORT
             const uniqueMap = new Map();
             currentList.forEach(item => {
               const key = item.ki_id ? item.ki_id.toLowerCase().trim() : item.id;
               uniqueMap.set(key, item);
             });
             const finalList = Array.from(uniqueMap.values());
+            const parseKiNum = (item) => {
+              const match = (item.ki_id || '').match(/KIC-(\d+)/i);
+              if (match) return parseInt(match[1], 10);
+              const slNum = parseInt(item.sl_no, 10);
+              return isNaN(slNum) ? 9999 : slNum;
+            };
+            finalList.sort((a, b) => parseKiNum(a) - parseKiNum(b));
 
             setOrders(finalList);
             setExcelStatus({
@@ -419,7 +426,7 @@
       // Persistent Orders Data
       const [orders, setOrders] = React.useState(() => {
         try {
-          const saved = localStorage.getItem('ki_orders_v4');
+          const saved = localStorage.getItem('ki_orders_v5');
           return saved ? JSON.parse(saved) : INITIAL_ORDERS;
         } catch(e) {
           return INITIAL_ORDERS;
@@ -471,7 +478,7 @@
       // Sync state to LocalStorage
       React.useEffect(() => {
         try {
-          localStorage.setItem('ki_orders_v4', JSON.stringify(orders));
+          localStorage.setItem('ki_orders_v5', JSON.stringify(orders));
         } catch(e) {}
       }, [orders]);
 
@@ -530,13 +537,21 @@
         setActiveTab('dashboard');
       };
 
-      // DATA VISIBILITY SCOPE:
-      // If Engineer logged in, show ONLY their assigned projects
+      // DATA VISIBILITY SCOPE & AUTOMATIC SEQUENTIAL NUMERICAL SORT:
+      // Sorts KI IDs in strict numerical sequence (KIC-001, KIC-002, ..., KIC-023)
       const visibleOrders = React.useMemo(() => {
-        if (isEngineer) {
-          return orders.filter(o => o.assigned_to === currentUser.name);
-        }
-        return orders;
+        const list = isEngineer
+          ? orders.filter(o => o.assigned_to === currentUser.name)
+          : orders;
+
+        const parseKiNum = (item) => {
+          const match = (item.ki_id || '').match(/KIC-(\d+)/i);
+          if (match) return parseInt(match[1], 10);
+          const slNum = parseInt(item.sl_no, 10);
+          return isNaN(slNum) ? 9999 : slNum;
+        };
+
+        return [...list].sort((a, b) => parseKiNum(a) - parseKiNum(b));
       }, [orders, currentUser, isEngineer]);
 
       const activeOrders = visibleOrders.filter(o => !o.is_cancelled);
