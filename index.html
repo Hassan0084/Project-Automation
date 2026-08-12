@@ -222,40 +222,46 @@
             });
 
             // SMART MERGE & DEDUPLICATION ENGINE
+            // Excel is the SOURCE OF TRUTH — all 21 columns always updated from sheet
             let updatedCount = 0;
             let addedCount = 0;
             let currentList = [...orders];
 
             parsedRows.forEach((row) => {
-              const existingIdx = currentList.findIndex(o => 
+              const existingIdx = currentList.findIndex(o =>
                 (o.ki_id && row.ki_id && o.ki_id.toLowerCase().trim() === row.ki_id.toLowerCase().trim()) ||
                 (o.circuit_id && row.circuit_id && o.circuit_id.toLowerCase().trim() === row.circuit_id.toLowerCase().trim())
               );
 
               if (existingIdx !== -1) {
                 const existing = currentList[existingIdx];
+                // Always trust Excel for all 21 columns — only keep system id
                 currentList[existingIdx] = {
-                  ...existing,
+                  id: existing.id,
                   sl_no: row.sl_no || existing.sl_no,
                   ki_id: row.ki_id || existing.ki_id,
-                  order_received: formatExcelDate(row.order_received || existing.order_received),
+                  order_received: formatExcelDate(row.order_received) || formatExcelDate(existing.order_received),
                   region: row.region || existing.region,
                   city: row.city || existing.city,
+                  circuit_id: row.circuit_id || existing.circuit_id,
+                  order_number: row.order_number || existing.order_number,
                   customer_name: row.customer_name || existing.customer_name,
                   customer_contact: row.customer_contact || existing.customer_contact,
                   bw: row.bw || existing.bw,
-                  circuit_id: row.circuit_id || existing.circuit_id,
-                  order_number: row.order_number || existing.order_number,
+                  los_performed: formatExcelDate(row.los_performed) || formatExcelDate(existing.los_performed),
                   los_status: row.los_status || existing.los_status,
                   los_id: row.los_id || existing.los_id,
-                  cwo_date: formatExcelDate(row.cwo_date || existing.cwo_date),
-                  installation_start: formatExcelDate(row.installation_start || existing.installation_start),
-                  installation_complete: formatExcelDate(row.installation_complete || existing.installation_complete),
-                  delivery_date: formatExcelDate(row.delivery_date || existing.delivery_date),
+                  cwo_date: formatExcelDate(row.cwo_date) || formatExcelDate(existing.cwo_date),
+                  installation_start: formatExcelDate(row.installation_start) || formatExcelDate(existing.installation_start),
+                  installation_complete: formatExcelDate(row.installation_complete) || formatExcelDate(existing.installation_complete),
+                  delivery_date: formatExcelDate(row.delivery_date) || formatExcelDate(existing.delivery_date),
+                  pole: row.pole !== undefined ? row.pole : existing.pole,
+                  invoice: row.invoice !== undefined ? row.invoice : existing.invoice,
                   order_status: row.order_status || existing.order_status,
                   assigned_to: row.assigned_to || existing.assigned_to,
-                  remarks: row.remarks || existing.remarks,
-                  is_cancelled: row.is_cancelled
+                  priority: existing.priority || 'Medium',
+                  remarks: row.order_status || row.remarks || existing.remarks,
+                  is_cancelled: row.is_cancelled !== undefined ? row.is_cancelled : existing.is_cancelled
                 };
                 updatedCount++;
               } else {
