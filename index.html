@@ -139,7 +139,8 @@
       { id: 'ord-20', sl_no: '20', ki_id: 'KIC-020-MW-MEL-STC',   order_received: '2026-07-31', region: 'CENTRAL', city: 'RIYADHDST', circuit_id: 'RIYADHDISTRICTS-RIYADH W-DIA64460',    order_number: 'I-153997754-9021',    customer_name: 'NOURNET ISP 1 - NOURNET ISP',                       customer_contact: 'Atif Ahmad - 0504164527',                        bw: '8Mbps',   los_performed: '2026-07-28', los_status: 'CLOS', los_id: 'ZASA009',             cwo_date: '2026-07-31', installation_start: '2026-08-01',     installation_complete: '2026-08-02',     delivery_date: '2026-08-02', pole: '', invoice: 'Issued', order_status: 'Delivered', assigned_to: 'Shukoor',     is_cancelled: false, priority: 'High',   remarks: 'Delivered' },
       { id: 'ord-21', sl_no: '21', ki_id: 'KIC-021-MW-MEL-STC',   order_received: '2026-07-31', region: 'CENTRAL', city: 'RIYADHDST', circuit_id: 'RIYADHDISTRICTS-RIYADH W-DIA64472',    order_number: 'I-154001313-9084',    customer_name: 'NOURNET ISP 1 - NOURNET ISP',                       customer_contact: 'Atif Ahmad - 0504164527',                        bw: '8Mbps',   los_performed: '2026-07-13', los_status: 'CLOS', los_id: 'ZTMA001',             cwo_date: '2026-07-31', installation_start: '2026-08-03',     installation_complete: '2026-08-04',     delivery_date: '',           pole: '', invoice: '',       order_status: 'Under MW Installation', assigned_to: 'Shukoor',  is_cancelled: false, priority: 'High',   remarks: 'Installation/alignment completed at both ends.' },
       { id: 'ord-22', sl_no: '22', ki_id: 'KIC-022-MW-MEL-STC',   order_received: '2026-07-31', region: 'CENTRAL', city: 'RIYADHDST', circuit_id: 'RIYADHDISTRICTS-RIYADH W-DIA65540',    order_number: 'I-155312328-4448',    customer_name: 'Al Rajhi Bank',                                      customer_contact: '0567878430 Yahya',                               bw: '8Mbps',   los_performed: '2026-08-04', los_status: 'CLOS', los_id: 'ZAK001 Re Routed',    cwo_date: '2026-07-31', installation_start: '',               installation_complete: '',               delivery_date: '',           pole: '', invoice: '',       order_status: 'Under MW Installation', assigned_to: 'Shukoor',  is_cancelled: false, priority: 'High',   remarks: 'Re Routed to ZAKA001 due to ZAKA013 tower dismantling.' },
-      { id: 'ord-23', sl_no: '23', ki_id: 'KIC-023-MW-MEL-STC',   order_received: '2026-08-03', region: 'CENTRAL', city: 'QASSIM',    circuit_id: 'QASSIM-RIYADH W-PLL66095',             order_number: 'I-155754471-6042',    customer_name: 'EATC',                                               customer_contact: 'Saleh Aljari - 0553612927',                      bw: '10MBPS',  los_performed: '',           los_status: 'CLOS', los_id: 'SDH 689-11-200-01',   cwo_date: '',           installation_start: '',               installation_complete: '',               delivery_date: '',           pole: '', invoice: '',       order_status: 'Under Survey', assigned_to: 'Haroon',   is_cancelled: false, priority: 'High',   remarks: 'Under Survey' }
+      { id: 'ord-23', sl_no: '23', ki_id: 'KIC-023-MW-MEL-STC',   order_received: '2026-08-03', region: 'CENTRAL', city: 'QASSIM',    circuit_id: 'QASSIM-RIYADH W-PLL66095',             order_number: 'I-155754471-6042',    customer_name: 'EATC',                                               customer_contact: 'Saleh Aljari - 0553612927',                      bw: '10MBPS',  los_performed: '',           los_status: 'CLOS', los_id: 'SDH 689-11-200-01',   cwo_date: '',           installation_start: '',               installation_complete: '',               delivery_date: '',           pole: '', invoice: '',       order_status: 'Under Survey', assigned_to: 'Haroon',   is_cancelled: false, priority: 'High',   remarks: 'Under Survey' },
+      { id: 'ord-24', sl_no: '24', ki_id: 'KIC-024-MW-MEL-Mobily', order_received: '2026-08-10', region: 'CENTRAL', city: 'RIYADH',    circuit_id: 'SIP 1-274382463024',                   order_number: '1001241250916700',    customer_name: 'NOURNET ISP 1',                                      customer_contact: 'Mr. Mwafaq - 0568007928',                        bw: '4Mbps',   los_performed: '2026-08-10', los_status: 'CLOS', los_id: 'C0488',               cwo_date: '2026-08-11', installation_start: '2026-08-11',     installation_complete: '2026-08-11',     delivery_date: '2026-08-11', pole: '', invoice: 'Issued', order_status: 'Delivered', assigned_to: 'Haroon',      is_cancelled: false, priority: 'High',   remarks: 'Delivered' }
     ];
 
     const DEFAULT_ACCOUNTS = [
@@ -431,7 +432,7 @@
       // Persistent Orders Data
       const [orders, setOrders] = React.useState(() => {
         try {
-          const saved = localStorage.getItem('ki_orders_v7');
+          const saved = localStorage.getItem('ki_orders_v8');
           return saved ? JSON.parse(saved) : INITIAL_ORDERS;
         } catch(e) {
           return INITIAL_ORDERS;
@@ -483,7 +484,7 @@
       // Sync state to LocalStorage
       React.useEffect(() => {
         try {
-          localStorage.setItem('ki_orders_v7', JSON.stringify(orders));
+          localStorage.setItem('ki_orders_v8', JSON.stringify(orders));
         } catch(e) {}
       }, [orders]);
 
