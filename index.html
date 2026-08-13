@@ -229,8 +229,7 @@
 
             parsedRows.forEach((row) => {
               const existingIdx = currentList.findIndex(o =>
-                (o.ki_id && row.ki_id && o.ki_id.toLowerCase().trim() === row.ki_id.toLowerCase().trim()) ||
-                (o.circuit_id && row.circuit_id && o.circuit_id.toLowerCase().trim() === row.circuit_id.toLowerCase().trim())
+                o.ki_id && row.ki_id && o.ki_id.toLowerCase().trim() === row.ki_id.toLowerCase().trim()
               );
 
               if (existingIdx !== -1) {
@@ -432,7 +431,7 @@
       // Persistent Orders Data
       const [orders, setOrders] = React.useState(() => {
         try {
-          const saved = localStorage.getItem('ki_orders_v5');
+          const saved = localStorage.getItem('ki_orders_v6');
           return saved ? JSON.parse(saved) : INITIAL_ORDERS;
         } catch(e) {
           return INITIAL_ORDERS;
@@ -484,7 +483,7 @@
       // Sync state to LocalStorage
       React.useEffect(() => {
         try {
-          localStorage.setItem('ki_orders_v5', JSON.stringify(orders));
+          localStorage.setItem('ki_orders_v6', JSON.stringify(orders));
         } catch(e) {}
       }, [orders]);
 
