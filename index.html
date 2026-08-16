@@ -168,74 +168,98 @@
           try {
             const data = new Uint8Array(evt.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-            if (rows.length === 0) {
-              setExcelStatus({ type: 'error', msg: 'No data rows found in the selected Excel sheet.' });
+            const sheetNames = workbook.SheetNames || [];
+
+            if (sheetNames.length === 0) {
+              setExcelStatus({ type: 'error', msg: 'No sheets found in the selected Excel workbook.' });
               return;
             }
 
-            // Standardize raw Excel row into system Order object with clean Date conversion
-            const parsedRows = rows.map((row, i) => {
-              const get = (...keys) => {
-                for (const k of keys) {
-                  const found = Object.keys(row).find(rk => rk.toLowerCase().replace(/[\s_\-]/g,'').includes(k.toLowerCase().replace(/[\s_\-]/g,'')));
-                  if (found && row[found] !== undefined && row[found] !== '') return String(row[found]).trim();
-                }
-                return '';
-              };
+            const allParsedRows = [];
 
-              const ki_id = get('ki id','kiid','kicid','orderid','id') || `KIC-EXP-${i+1}`;
-              const circuit_id = get('circuit id','circuitid','circuit');
-              const order_number = get('order number','ordernumber','order no');
-              const raw_status = get('order status','activestatus','workflowstatus') || get('status') || 'Under MW Installation';
-              const order_status = raw_status.trim();
-              const pole = get('pole');
-              const invoice = get('invoice');
+            sheetNames.forEach((sheetName) => {
+              const sheetLower = sheetName.toLowerCase().trim();
+              // Skip summary/reporting sheets
+              if (sheetLower.includes('summary') || sheetLower.includes('pivot') || sheetLower.includes('dashboard')) {
+                return;
+              }
 
-              return {
-                sl_no: get('sl no','sl','sno','serial') || String(i + 1),
-                ki_id: ki_id,
-                order_received: formatExcelDate(get('order received','orderreceived','date') || new Date().toISOString().split('T')[0]),
-                region: (get('region') || 'CENTRAL').toUpperCase(),
-                city: (get('city','location') || 'RIYADH').toUpperCase(),
-                customer_name: get('customer name','customername','customer','client') || 'Enterprise Client',
-                customer_contact: get('customer contact','customercontact','contact','phone','mobile'),
-                bw: get('bw','bandwidth','speed') || '10MBPs',
-                circuit_id: circuit_id,
-                order_number: order_number,
-                los_performed: formatExcelDate(get('los performed','losperformed')),
-                los_status: get('los status','losstatus') || 'CLOS',
-                los_id: get('los id','losid'),
-                cwo_date: formatExcelDate(get('cwo date','cwodate','cwo')),
-                installation_start: formatExcelDate(get('installation start date','installationstart','start date')),
-                installation_complete: formatExcelDate(get('installation complete date','installationcomplete','complete date')),
-                delivery_date: formatExcelDate(get('delivery date','deliverydate','delivery')),
-                pole: pole,
-                invoice: invoice,
-                order_status: order_status,
-                assigned_to: get('assigned to','assignedto','engineer','assigned') || 'Unassigned',
-                priority: get('priority') || 'Medium',
-                remarks: get('remarks','notes','comment') || order_status,
-                is_cancelled: order_status.toLowerCase().includes('cancelled') || ['true','yes','1'].includes(get('cancelled','iscancelled').toLowerCase())
-              };
+              const worksheet = workbook.Sheets[sheetName];
+              const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+              if (!rows || rows.length === 0) return;
+
+              const isCancelledSheet = sheetLower.includes('cancel');
+
+              rows.forEach((row, i) => {
+                const get = (...keys) => {
+                  for (const k of keys) {
+                    const found = Object.keys(row).find(rk => rk.toLowerCase().replace(/[\s_\-]/g,'').includes(k.toLowerCase().replace(/[\s_\-]/g,'')));
+                    if (found && row[found] !== undefined && row[found] !== '') return String(row[found]).trim();
+                  }
+                  return '';
+                };
+
+                const ki_id = get('ki id','kiid','kicid','orderid','id');
+                const customer_name = get('customer name','customername','customer','client');
+                const circuit_id = get('circuit id','circuitid','circuit');
+                const sl_no = get('sl no','sl','sno','serial');
+
+                // Skip blank or title padding rows
+                if (!ki_id && !customer_name && !circuit_id && !sl_no) return;
+
+                const final_ki_id = ki_id || `KIC-EXP-${allParsedRows.length + 1}`;
+                const raw_status = get('order status','activestatus','workflowstatus') || get('status') || (isCancelledSheet ? 'Cancelled' : 'Under MW Installation');
+                const order_status = raw_status.trim();
+                const is_cancelled = isCancelledSheet ||
+                  order_status.toLowerCase().includes('cancel') ||
+                  ['true','yes','1'].includes(get('cancelled','iscancelled').toLowerCase());
+
+                allParsedRows.push({
+                  sl_no: sl_no || String(allParsedRows.length + 1),
+                  ki_id: final_ki_id,
+                  order_received: formatExcelDate(get('order received','orderreceived','date') || new Date().toISOString().split('T')[0]),
+                  region: (get('region') || 'CENTRAL').toUpperCase(),
+                  city: (get('city','location') || 'RIYADH').toUpperCase(),
+                  customer_name: customer_name || 'Enterprise Client',
+                  customer_contact: get('customer contact','customercontact','contact','phone','mobile'),
+                  bw: get('bw','bandwidth','speed') || '10MBPs',
+                  circuit_id: circuit_id,
+                  order_number: get('order number','ordernumber','order no'),
+                  los_performed: formatExcelDate(get('los performed','losperformed')),
+                  los_status: get('los status','losstatus') || 'CLOS',
+                  los_id: get('los id','losid'),
+                  cwo_date: formatExcelDate(get('cwo date','cwodate','cwo')),
+                  installation_start: formatExcelDate(get('installation start date','installationstart','start date')),
+                  installation_complete: formatExcelDate(get('installation complete date','installationcomplete','complete date')),
+                  delivery_date: formatExcelDate(get('delivery date','deliverydate','delivery')),
+                  pole: get('pole'),
+                  invoice: get('invoice'),
+                  order_status: order_status,
+                  assigned_to: get('assigned to','assignedto','engineer','assigned') || 'Unassigned',
+                  priority: get('priority') || 'Medium',
+                  remarks: get('remarks','notes','comment') || order_status,
+                  is_cancelled: is_cancelled
+                });
+              });
             });
 
-            // SMART MERGE & DEDUPLICATION ENGINE
-            // Excel is the SOURCE OF TRUTH — all 21 columns always updated from sheet
+            if (allParsedRows.length === 0) {
+              setExcelStatus({ type: 'error', msg: 'No order rows found in the uploaded Excel workbook.' });
+              return;
+            }
+
+            // SMART MERGE & DEDUPLICATION ENGINE across all sheets
             let updatedCount = 0;
             let addedCount = 0;
             let currentList = [...orders];
 
-            parsedRows.forEach((row) => {
+            allParsedRows.forEach((row) => {
               const existingIdx = currentList.findIndex(o =>
                 o.ki_id && row.ki_id && o.ki_id.toLowerCase().trim() === row.ki_id.toLowerCase().trim()
               );
 
               if (existingIdx !== -1) {
                 const existing = currentList[existingIdx];
-                // Always trust Excel for all 21 columns — only keep system id
                 currentList[existingIdx] = {
                   id: existing.id,
                   sl_no: row.sl_no || existing.sl_no,
@@ -255,13 +279,13 @@
                   installation_start: formatExcelDate(row.installation_start) || formatExcelDate(existing.installation_start),
                   installation_complete: formatExcelDate(row.installation_complete) || formatExcelDate(existing.installation_complete),
                   delivery_date: formatExcelDate(row.delivery_date) || formatExcelDate(existing.delivery_date),
-                  pole: row.pole !== undefined ? row.pole : existing.pole,
-                  invoice: row.invoice !== undefined ? row.invoice : existing.invoice,
+                  pole: row.pole !== undefined && row.pole !== '' ? row.pole : existing.pole,
+                  invoice: row.invoice !== undefined && row.invoice !== '' ? row.invoice : existing.invoice,
                   order_status: row.order_status || existing.order_status,
                   assigned_to: row.assigned_to || existing.assigned_to,
                   priority: existing.priority || 'Medium',
-                  remarks: row.order_status || row.remarks || existing.remarks,
-                  is_cancelled: row.is_cancelled !== undefined ? row.is_cancelled : existing.is_cancelled
+                  remarks: row.remarks || row.order_status || existing.remarks,
+                  is_cancelled: row.is_cancelled
                 };
                 updatedCount++;
               } else {
@@ -291,7 +315,7 @@
             setOrders(finalList);
             setExcelStatus({
               type: 'success',
-              msg: `✅ Excel Sheet Synced Successfully! ${updatedCount} existing circuits updated, ${addedCount} missing circuits added. All Excel date codes formatted cleanly to YYYY-MM-DD. Total database size: ${finalList.length} circuits.`
+              msg: `✅ Excel Sheet Synced Successfully! Parsed ${sheetNames.length} sheet(s). ${updatedCount} existing circuits updated, ${addedCount} new circuits added. Total database size: ${finalList.length} circuits.`
             });
 
           } catch (err) {
@@ -432,7 +456,7 @@
       // Persistent Orders Data
       const [orders, setOrders] = React.useState(() => {
         try {
-          const saved = localStorage.getItem('ki_orders_v8');
+          const saved = localStorage.getItem('ki_orders_v9');
           return saved ? JSON.parse(saved) : INITIAL_ORDERS;
         } catch(e) {
           return INITIAL_ORDERS;
@@ -484,7 +508,7 @@
       // Sync state to LocalStorage
       React.useEffect(() => {
         try {
-          localStorage.setItem('ki_orders_v8', JSON.stringify(orders));
+          localStorage.setItem('ki_orders_v9', JSON.stringify(orders));
         } catch(e) {}
       }, [orders]);
 
