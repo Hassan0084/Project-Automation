@@ -435,13 +435,11 @@
       const [recipients, setRecipients] = React.useState(() => {
         try { return JSON.parse(localStorage.getItem('ki_email_recipients') || '[]'); } catch { return []; }
       });
-      const [newEmail, setNewEmail] = React.useState('');
       const [emailInput, setEmailInput] = React.useState('');
       const [sendStatus, setSendStatus] = React.useState(null); // null | 'sending' | 'success' | 'error'
       const [sendLog, setSendLog] = React.useState('');
       const [showPreview, setShowPreview] = React.useState(true);
 
-      // Save recipients to localStorage whenever they change
       React.useEffect(() => {
         localStorage.setItem('ki_email_recipients', JSON.stringify(recipients));
       }, [recipients]);
@@ -465,79 +463,133 @@
       const buildReportHTML = () => {
         const orderRows = activeOrders.map((o, i) => `
           <tr style="background:${i % 2 === 0 ? '#f8fafc' : '#ffffff'}">
-            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px">${o.ki_id}</td>
-            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px">${o.customer_name}</td>
-            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px">${o.city}</td>
-            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px">${o.bw}</td>
-            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px">${(o.order_status || '').substring(0, 40)}</td>
-            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px">${o.assigned_to || 'Unassigned'}</td>
+            <td style="padding:8px 12px;border:1px solid #e2e8f0;font-size:12px;font-weight:700;color:#6d28d9">${o.ki_id}</td>
+            <td style="padding:8px 12px;border:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#0f172a">${o.circuit_id || '—'}</td>
+            <td style="padding:8px 12px;border:1px solid #e2e8f0;font-size:12px">${o.city}</td>
+            <td style="padding:8px 12px;border:1px solid #e2e8f0;font-size:12px;font-weight:600">${o.bw}</td>
+            <td style="padding:8px 12px;border:1px solid #e2e8f0;font-size:12px">${o.order_status}</td>
+            <td style="padding:8px 12px;border:1px solid #e2e8f0;font-size:12px">${o.assigned_to || 'Unassigned'}</td>
           </tr>`).join('');
 
-        return `
-<!DOCTYPE html>
+        return `<!DOCTYPE html>
 <html>
-<body style="font-family:Arial,sans-serif;background:#f1f5f9;padding:20px;margin:0">
-  <div style="max-width:700px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.1)">
-    <div style="background:linear-gradient(135deg,#1e1333,#6d28d9);padding:28px 32px;color:#fff">
-      <div style="font-size:22px;font-weight:800;letter-spacing:1px">KREATIVICON ISP</div>
-      <div style="font-size:13px;opacity:0.8;margin-top:4px">Project Management Dashboard — Executive Report</div>
-      <div style="margin-top:12px;font-size:13px;opacity:0.7">${today} &nbsp;•&nbsp; Generated at ${reportTime}</div>
+<head><meta charset="utf-8"/></head>
+<body style="font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f1f5f9;padding:20px;margin:0;color:#1e293b">
+  <div style="max-width:780px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.1);border:1px solid #cbd5e1">
+    
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#1e1333 0%,#6d28d9 100%);padding:30px 36px;color:#ffffff">
+      <div style="font-size:24px;font-weight:800;letter-spacing:1.5px;color:#f8fafc">KREATIVICON ISP</div>
+      <div style="font-size:14px;color:#d8b4fe;margin-top:4px;font-weight:600">Project Management Dashboard — Executive Report</div>
+      <div style="margin-top:14px;font-size:12px;color:#c4b5fd">📅 ${today} &nbsp;•&nbsp; 🕒 ${reportTime} &nbsp;•&nbsp; Sender: hassan@kreativicon.com</div>
     </div>
-    <div style="padding:28px 32px">
-      <h2 style="font-size:16px;color:#1e1333;margin:0 0 16px;font-weight:800">📊 KPI Summary</h2>
-      <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+
+    <div style="padding:32px">
+      <!-- KPI Cards -->
+      <h2 style="font-size:16px;color:#0f172a;margin:0 0 16px;font-weight:800;border-bottom:2px solid #8b5cf6;padding-bottom:6px">📊 Executive KPI Summary</h2>
+      
+      <table style="width:100%;border-collapse:separate;border-spacing:8px;margin-bottom:24px">
         <tr>
-          <td style="background:#f0fdf4;border-radius:8px;padding:14px 18px;width:25%;text-align:center">
-            <div style="font-size:28px;font-weight:800;color:#16a34a">${activeCount}</div>
-            <div style="font-size:11px;color:#15803d;font-weight:700;margin-top:4px">ACTIVE CIRCUITS</div>
+          <td style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px;text-align:center;width:25%">
+            <div style="font-size:32px;font-weight:800;color:#16a34a">${activeCount}</div>
+            <div style="font-size:11px;color:#15803d;font-weight:700;margin-top:4px;letter-spacing:0.5px">ACTIVE CIRCUITS</div>
           </td>
-          <td style="width:4%"></td>
-          <td style="background:#eff6ff;border-radius:8px;padding:14px 18px;width:25%;text-align:center">
-            <div style="font-size:28px;font-weight:800;color:#2563eb">${deliveredCount}</div>
-            <div style="font-size:11px;color:#1d4ed8;font-weight:700;margin-top:4px">DELIVERED</div>
+          <td style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:16px;text-align:center;width:25%">
+            <div style="font-size:32px;font-weight:800;color:#2563eb">${deliveredCount}</div>
+            <div style="font-size:11px;color:#1d4ed8;font-weight:700;margin-top:4px;letter-spacing:0.5px">DELIVERED</div>
           </td>
-          <td style="width:4%"></td>
-          <td style="background:#fefce8;border-radius:8px;padding:14px 18px;width:25%;text-align:center">
-            <div style="font-size:28px;font-weight:800;color:#d97706">${installingCount}</div>
-            <div style="font-size:11px;color:#b45309;font-weight:700;margin-top:4px">UNDER INSTALLATION</div>
+          <td style="background:#fefce8;border:1px solid #fef08a;border-radius:10px;padding:16px;text-align:center;width:25%">
+            <div style="font-size:32px;font-weight:800;color:#d97706">${installingCount}</div>
+            <div style="font-size:11px;color:#b45309;font-weight:700;margin-top:4px;letter-spacing:0.5px">UNDER INSTALLATION</div>
           </td>
-          <td style="width:4%"></td>
-          <td style="background:#fdf4ff;border-radius:8px;padding:14px 18px;width:25%;text-align:center">
-            <div style="font-size:28px;font-weight:800;color:#7c3aed">${cancelledCount}</div>
-            <div style="font-size:11px;color:#6d28d9;font-weight:700;margin-top:4px">CANCELLED</div>
+          <td style="background:#fdf4ff;border:1px solid #f5d0fe;border-radius:10px;padding:16px;text-align:center;width:25%">
+            <div style="font-size:32px;font-weight:800;color:#7c3aed">${cancelledCount}</div>
+            <div style="font-size:11px;color:#6d28d9;font-weight:700;margin-top:4px;letter-spacing:0.5px">CANCELLED</div>
           </td>
         </tr>
       </table>
-      <table style="width:100%;border-collapse:collapse;margin-bottom:24px;background:#f8fafc;border-radius:8px;overflow:hidden">
-        <tr><td style="padding:8px 14px;font-size:13px;border-bottom:1px solid #e2e8f0"><strong>Grand Total Circuits:</strong></td><td style="padding:8px 14px;font-size:13px;font-weight:700;border-bottom:1px solid #e2e8f0">${totalCount}</td>
-            <td style="padding:8px 14px;font-size:13px;border-bottom:1px solid #e2e8f0"><strong>LOS CLOS Pass Rate:</strong></td><td style="padding:8px 14px;font-size:13px;font-weight:700;border-bottom:1px solid #e2e8f0">${activeCount > 0 ? ((closCount/activeCount)*100).toFixed(1) : 0}%</td></tr>
-        <tr><td style="padding:8px 14px;font-size:13px;border-bottom:1px solid #e2e8f0"><strong>STC Circuits:</strong></td><td style="padding:8px 14px;font-size:13px;font-weight:700;border-bottom:1px solid #e2e8f0">${stcCount}</td>
-            <td style="padding:8px 14px;font-size:13px;border-bottom:1px solid #e2e8f0"><strong>Mobily Circuits:</strong></td><td style="padding:8px 14px;font-size:13px;font-weight:700;border-bottom:1px solid #e2e8f0">${mobilyCount}</td></tr>
-        <tr><td style="padding:8px 14px;font-size:13px"><strong>Report Generated By:</strong></td><td style="padding:8px 14px;font-size:13px;font-weight:700">${currentUser ? currentUser.name : 'Admin'}</td>
-            <td style="padding:8px 14px;font-size:13px"><strong>Report Date:</strong></td><td style="padding:8px 14px;font-size:13px;font-weight:700">${today}</td></tr>
+
+      <!-- Secondary Stats -->
+      <table style="width:100%;border-collapse:collapse;margin-bottom:28px;background:#f8fafc;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0">
+        <tr>
+          <td style="padding:10px 16px;font-size:13px;border-bottom:1px solid #e2e8f0;border-right:1px solid #e2e8f0"><strong>Grand Total Circuits:</strong> ${totalCount}</td>
+          <td style="padding:10px 16px;font-size:13px;border-bottom:1px solid #e2e8f0"><strong>LOS CLOS Pass Rate:</strong> <span style="color:#16a34a;font-weight:700">${activeCount > 0 ? ((closCount/activeCount)*100).toFixed(1) : 0}%</span></td>
+        </tr>
+        <tr>
+          <td style="padding:10px 16px;font-size:13px;border-right:1px solid #e2e8f0"><strong>STC Circuits:</strong> ${stcCount}</td>
+          <td style="padding:10px 16px;font-size:13px"><strong>Mobily Circuits:</strong> ${mobilyCount}</td>
+        </tr>
       </table>
-      <h2 style="font-size:16px;color:#1e1333;margin:0 0 12px;font-weight:800">📋 Active Circuits Details</h2>
-      <table style="width:100%;border-collapse:collapse;font-size:12px">
+
+      <!-- Table -->
+      <h2 style="font-size:16px;color:#0f172a;margin:0 0 14px;font-weight:800;border-bottom:2px solid #8b5cf6;padding-bottom:6px">📋 Active Circuits Details (${activeCount})</h2>
+      
+      <table style="width:100%;border-collapse:collapse;font-size:12px;border:1px solid #cbd5e1">
         <thead>
-          <tr style="background:#1e1333;color:#fff">
-            <th style="padding:8px 10px;border:1px solid #374151;text-align:left">KI ID</th>
-            <th style="padding:8px 10px;border:1px solid #374151;text-align:left">Customer</th>
-            <th style="padding:8px 10px;border:1px solid #374151;text-align:left">City</th>
-            <th style="padding:8px 10px;border:1px solid #374151;text-align:left">BW</th>
-            <th style="padding:8px 10px;border:1px solid #374151;text-align:left">Status</th>
-            <th style="padding:8px 10px;border:1px solid #374151;text-align:left">Assigned To</th>
+          <tr style="background:#1e1333;color:#ffffff">
+            <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;letter-spacing:0.5px;border:1px solid #334155">KI ID</th>
+            <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;letter-spacing:0.5px;border:1px solid #334155">CIRCUIT ID</th>
+            <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;letter-spacing:0.5px;border:1px solid #334155">CITY</th>
+            <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;letter-spacing:0.5px;border:1px solid #334155">BW</th>
+            <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;letter-spacing:0.5px;border:1px solid #334155">STATUS</th>
+            <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;letter-spacing:0.5px;border:1px solid #334155">ASSIGNED TO</th>
           </tr>
         </thead>
         <tbody>${orderRows}</tbody>
       </table>
     </div>
-    <div style="background:#f8fafc;padding:16px 32px;font-size:11px;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0">
-      This report was generated automatically by the Kreativicon ISP Project Management Dashboard.<br/>
-      Confidential — For internal management use only.
+
+    <!-- Footer -->
+    <div style="background:#f8fafc;padding:18px 36px;font-size:11px;color:#64748b;text-align:center;border-top:1px solid #e2e8f0">
+      Report generated automatically by <strong>Kreativicon ISP Project Management Dashboard</strong><br/>
+      Sender Account: <strong>hassan@kreativicon.com</strong> • Confidential — Internal Management Use Only
     </div>
   </div>
 </body>
 </html>`;
+      };
+
+      const buildReportFormattedText = () => {
+        const line = "==========================================================================";
+        const subline = "--------------------------------------------------------------------------";
+
+        const orderFormattedRows = activeOrders.map(o => {
+          const ki = (o.ki_id || '').padEnd(20);
+          const cid = (o.circuit_id || '—').padEnd(36);
+          const city = (o.city || '').padEnd(12);
+          const bw = (o.bw || '').padEnd(10);
+          const st = (o.order_status || '').padEnd(30);
+          return `${ki} | ${cid} | ${city} | ${bw} | ${st}`;
+        }).join('\n');
+
+        return `${line}
+                 KREATIVICON ISP — EXECUTIVE REPORT
+${line}
+Date: ${today}
+Time: ${reportTime}
+Sender: hassan@kreativicon.com
+
+${subline}
+📊 KPI SUMMARY
+${subline}
+  • Grand Total Circuits:   ${totalCount}
+  • Active Circuits:        ${activeCount}
+  • Delivered Circuits:     ${deliveredCount}
+  • Under Installation:     ${installingCount}
+  • Cancelled Circuits:     ${cancelledCount}
+  • LOS CLOS Pass Rate:     ${activeCount > 0 ? ((closCount/activeCount)*100).toFixed(1) : 0}%
+  • Provider Breakdown:     STC: ${stcCount} | Mobily: ${mobilyCount}
+
+${subline}
+📋 ACTIVE CIRCUITS LIST (${activeCount})
+${subline}
+${'KI ID'.padEnd(20)} | ${'CIRCUIT ID'.padEnd(36)} | ${'CITY'.padEnd(12)} | ${'BW'.padEnd(10)} | STATUS
+---------------------------------------------------------------------------------------------------------------
+${orderFormattedRows}
+
+${line}
+Generated automatically by Kreativicon ISP Project Management Dashboard
+Confidential — Internal Management Use Only`;
       };
 
       const sendOutlookWeb = () => {
@@ -547,30 +599,13 @@
           return;
         }
         const subject = `KI Project Executive Report — ${today}`;
-        const reportText = `Kreativicon ISP — Executive Summary Report (${today})
-Generated by: ${currentUser ? currentUser.name : 'Hassan Saleem'} (hassan@kreativicon.com)
-
-📊 KPI SUMMARY:
-• Grand Total Circuits: ${totalCount}
-• Active Circuits: ${activeCount}
-• Delivered: ${deliveredCount}
-• Under Installation: ${installingCount}
-• Cancelled: ${cancelledCount}
-• LOS CLOS Pass Rate: ${activeCount > 0 ? ((closCount/activeCount)*100).toFixed(1) : 0}%
-• STC Circuits: ${stcCount} | Mobily: ${mobilyCount}
-
-📋 ACTIVE CIRCUITS LIST:
-${activeOrders.map(o => `• ${o.ki_id} | ${o.customer_name} | City: ${o.city} | Speed: ${o.bw} | Status: ${o.order_status} | Assigned: ${o.assigned_to || 'Unassigned'}`).join('\n')}
-
----
-Kreativicon ISP Dashboard — Automatic Executive Report`;
-
+        const reportText = buildReportFormattedText();
         const toStr = recipients.join(';');
         const outlookWebUrl = `https://outlook.cloud.microsoft/mail/deeplink/compose?to=${encodeURIComponent(toStr)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(reportText)}`;
         window.open(outlookWebUrl, '_blank');
 
         setSendStatus('success');
-        setSendLog(`📬 Opened Outlook Web Compose window for hassan@kreativicon.com to send to: ${recipients.join(', ')}`);
+        setSendLog(`📬 Opened Outlook Web Compose window for hassan@kreativicon.com`);
       };
 
       const sendMailto = () => {
@@ -580,20 +615,7 @@ Kreativicon ISP Dashboard — Automatic Executive Report`;
           return;
         }
         const subject = `KI Project Executive Report — ${today}`;
-        const reportText = `Kreativicon ISP — Executive Summary Report (${today})
-Generated by: ${currentUser ? currentUser.name : 'Hassan Saleem'} (hassan@kreativicon.com)
-
-📊 KPI SUMMARY:
-• Grand Total Circuits: ${totalCount}
-• Active Circuits: ${activeCount}
-• Delivered: ${deliveredCount}
-• Under Installation: ${installingCount}
-• Cancelled: ${cancelledCount}
-• LOS CLOS Pass Rate: ${activeCount > 0 ? ((closCount/activeCount)*100).toFixed(1) : 0}%
-
-📋 ACTIVE CIRCUITS:
-${activeOrders.map(o => `• ${o.ki_id} | ${o.customer_name} | ${o.city} | ${o.bw} | ${o.order_status}`).join('\n')}`;
-
+        const reportText = buildReportFormattedText();
         const mailtoUrl = `mailto:${recipients.join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(reportText)}`;
         window.open(mailtoUrl, '_blank');
 
@@ -601,21 +623,30 @@ ${activeOrders.map(o => `• ${o.ki_id} | ${o.customer_name} | ${o.city} | ${o.b
         setSendLog(`📧 Launched default Email app pre-filled for: ${recipients.join(', ')}`);
       };
 
-      const sendReport = async () => {
-        // Default action: Open Outlook Web Compose
-        sendOutlookWeb();
+      const copyRichHTML = () => {
+        const html = buildReportHTML();
+        const text = buildReportFormattedText();
+        try {
+          const blobHtml = new Blob([html], { type: 'text/html' });
+          const blobText = new Blob([text], { type: 'text/plain' });
+          const item = new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText });
+          navigator.clipboard.write([item]).then(() => {
+            setSendStatus('success');
+            setSendLog('✨ Copied Rich HTML Email to clipboard! Open Outlook and press Ctrl+V in email body to paste full styled report.');
+          });
+        } catch (e) {
+          navigator.clipboard.writeText(text).then(() => {
+            setSendStatus('success');
+            setSendLog('✅ Report text copied to clipboard!');
+          });
+        }
       };
 
       const copyReport = () => {
-        const text = `Kreativicon ISP — Executive Report (${today})
-Sender: hassan@kreativicon.com
-Grand Total: ${totalCount} | Active: ${activeCount} | Delivered: ${deliveredCount} | Cancelled: ${cancelledCount}
-LOS CLOS: ${activeCount > 0 ? ((closCount/activeCount)*100).toFixed(1) : 0}%
-
-${activeOrders.map(o => `${o.ki_id} | ${o.customer_name} | ${o.city} | ${o.order_status}`).join('\n')}`;
+        const text = buildReportFormattedText();
         navigator.clipboard.writeText(text).then(() => {
           setSendStatus('success');
-          setSendLog('✅ Report copied to clipboard!');
+          setSendLog('✅ Formatted report text copied to clipboard!');
         });
       };
 
@@ -630,6 +661,9 @@ ${activeOrders.map(o => `${o.ki_id} | ${o.customer_name} | ${o.city} | ${o.order
               </p>
             </div>
             <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <button onClick={copyRichHTML} style={{ padding: '0.55rem 1.1rem', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.82rem', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}>
+                ✨ Copy Rich HTML (for Outlook)
+              </button>
               <button onClick={copyReport} style={{ padding: '0.55rem 1.1rem', background: 'linear-gradient(135deg, #6d28d9, #a855f7)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.82rem' }}>
                 📋 Copy Text
               </button>
@@ -754,12 +788,12 @@ ${activeOrders.map(o => `${o.ki_id} | ${o.customer_name} | ${o.city} | ${o.order
                         </div>
                       ))}
                     </div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e1333', marginBottom: '8px' }}>📋 Active Circuits</div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e1333', marginBottom: '8px' }}>📋 Active Circuits Details</div>
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
                         <thead>
                           <tr style={{ background: '#1e1333', color: '#fff' }}>
-                            {['KI ID', 'Customer', 'City', 'BW', 'Status', 'Assigned To'].map(h => (
+                            {['KI ID', 'Circuit ID', 'City', 'BW', 'Status', 'Assigned To'].map(h => (
                               <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
                             ))}
                           </tr>
@@ -768,7 +802,7 @@ ${activeOrders.map(o => `${o.ki_id} | ${o.customer_name} | ${o.city} | ${o.order
                           {activeOrders.map((o, i) => (
                             <tr key={o.ki_id} style={{ background: i % 2 === 0 ? '#f8fafc' : '#fff' }}>
                               <td style={{ padding: '5px 8px', border: '1px solid #e2e8f0', fontWeight: 700, color: '#6d28d9', whiteSpace: 'nowrap' }}>{o.ki_id}</td>
-                              <td style={{ padding: '5px 8px', border: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>{(o.customer_name || '').substring(0, 22)}{o.customer_name && o.customer_name.length > 22 ? '…' : ''}</td>
+                              <td style={{ padding: '5px 8px', border: '1px solid #e2e8f0', fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>{o.circuit_id || '—'}</td>
                               <td style={{ padding: '5px 8px', border: '1px solid #e2e8f0' }}>{o.city}</td>
                               <td style={{ padding: '5px 8px', border: '1px solid #e2e8f0' }}>{o.bw}</td>
                               <td style={{ padding: '5px 8px', border: '1px solid #e2e8f0', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.order_status}</td>
@@ -780,7 +814,7 @@ ${activeOrders.map(o => `${o.ki_id} | ${o.customer_name} | ${o.city} | ${o.order
                     </div>
                   </div>
                   <div style={{ background: '#f8fafc', padding: '10px 24px', fontSize: '10px', color: '#94a3b8', textAlign: 'center', borderTop: '1px solid #e2e8f0' }}>
-                    Generated automatically · Kreativicon ISP Dashboard · Confidential
+                    Generated automatically · Kreativicon ISP Dashboard · Sender: hassan@kreativicon.com
                   </div>
                 </div>
               )}
