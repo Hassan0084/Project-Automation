@@ -12,6 +12,8 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <!-- SheetJS for Excel parsing -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <!-- EmailJS for browser-based email sending -->
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@800;900&family=Montserrat:wght@800;900&display=swap');
@@ -422,6 +424,355 @@
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>{s.label}</div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── EMAIL REPORT TAB COMPONENT ──
+    function EmailReportTab({ orders, activeOrders, totalCount, activeCount, cancelledCount, closCount, installingCount, deliveredCount, stcCount, mobilyCount, currentUser }) {
+      const [recipients, setRecipients] = React.useState(() => {
+        try { return JSON.parse(localStorage.getItem('ki_email_recipients') || '[]'); } catch { return []; }
+      });
+      const [newEmail, setNewEmail] = React.useState('');
+      const [emailInput, setEmailInput] = React.useState('');
+      const [sendStatus, setSendStatus] = React.useState(null); // null | 'sending' | 'success' | 'error'
+      const [sendLog, setSendLog] = React.useState('');
+      const [showPreview, setShowPreview] = React.useState(true);
+
+      // Save recipients to localStorage whenever they change
+      React.useEffect(() => {
+        localStorage.setItem('ki_email_recipients', JSON.stringify(recipients));
+      }, [recipients]);
+
+      const addRecipient = () => {
+        const email = emailInput.trim().toLowerCase();
+        if (!email) return;
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) { setSendStatus('error'); setSendLog('Please enter a valid email address.'); return; }
+        if (recipients.includes(email)) { setSendStatus('error'); setSendLog('This email is already in the list.'); return; }
+        setRecipients(prev => [...prev, email]);
+        setEmailInput('');
+        setSendStatus(null);
+      };
+
+      const removeRecipient = (email) => setRecipients(prev => prev.filter(r => r !== email));
+
+      const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      const reportTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+      const buildReportHTML = () => {
+        const orderRows = activeOrders.map((o, i) => `
+          <tr style="background:${i % 2 === 0 ? '#f8fafc' : '#ffffff'}">
+            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px">${o.ki_id}</td>
+            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px">${o.customer_name}</td>
+            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px">${o.city}</td>
+            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px">${o.bw}</td>
+            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px">${(o.order_status || '').substring(0, 40)}</td>
+            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:12px">${o.assigned_to || 'Unassigned'}</td>
+          </tr>`).join('');
+
+        return `
+<!DOCTYPE html>
+<html>
+<body style="font-family:Arial,sans-serif;background:#f1f5f9;padding:20px;margin:0">
+  <div style="max-width:700px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.1)">
+    <div style="background:linear-gradient(135deg,#1e1333,#6d28d9);padding:28px 32px;color:#fff">
+      <div style="font-size:22px;font-weight:800;letter-spacing:1px">KREATIVICON ISP</div>
+      <div style="font-size:13px;opacity:0.8;margin-top:4px">Project Management Dashboard — Executive Report</div>
+      <div style="margin-top:12px;font-size:13px;opacity:0.7">${today} &nbsp;•&nbsp; Generated at ${reportTime}</div>
+    </div>
+    <div style="padding:28px 32px">
+      <h2 style="font-size:16px;color:#1e1333;margin:0 0 16px;font-weight:800">📊 KPI Summary</h2>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+        <tr>
+          <td style="background:#f0fdf4;border-radius:8px;padding:14px 18px;width:25%;text-align:center">
+            <div style="font-size:28px;font-weight:800;color:#16a34a">${activeCount}</div>
+            <div style="font-size:11px;color:#15803d;font-weight:700;margin-top:4px">ACTIVE CIRCUITS</div>
+          </td>
+          <td style="width:4%"></td>
+          <td style="background:#eff6ff;border-radius:8px;padding:14px 18px;width:25%;text-align:center">
+            <div style="font-size:28px;font-weight:800;color:#2563eb">${deliveredCount}</div>
+            <div style="font-size:11px;color:#1d4ed8;font-weight:700;margin-top:4px">DELIVERED</div>
+          </td>
+          <td style="width:4%"></td>
+          <td style="background:#fefce8;border-radius:8px;padding:14px 18px;width:25%;text-align:center">
+            <div style="font-size:28px;font-weight:800;color:#d97706">${installingCount}</div>
+            <div style="font-size:11px;color:#b45309;font-weight:700;margin-top:4px">UNDER INSTALLATION</div>
+          </td>
+          <td style="width:4%"></td>
+          <td style="background:#fdf4ff;border-radius:8px;padding:14px 18px;width:25%;text-align:center">
+            <div style="font-size:28px;font-weight:800;color:#7c3aed">${cancelledCount}</div>
+            <div style="font-size:11px;color:#6d28d9;font-weight:700;margin-top:4px">CANCELLED</div>
+          </td>
+        </tr>
+      </table>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:24px;background:#f8fafc;border-radius:8px;overflow:hidden">
+        <tr><td style="padding:8px 14px;font-size:13px;border-bottom:1px solid #e2e8f0"><strong>Grand Total Circuits:</strong></td><td style="padding:8px 14px;font-size:13px;font-weight:700;border-bottom:1px solid #e2e8f0">${totalCount}</td>
+            <td style="padding:8px 14px;font-size:13px;border-bottom:1px solid #e2e8f0"><strong>LOS CLOS Pass Rate:</strong></td><td style="padding:8px 14px;font-size:13px;font-weight:700;border-bottom:1px solid #e2e8f0">${activeCount > 0 ? ((closCount/activeCount)*100).toFixed(1) : 0}%</td></tr>
+        <tr><td style="padding:8px 14px;font-size:13px;border-bottom:1px solid #e2e8f0"><strong>STC Circuits:</strong></td><td style="padding:8px 14px;font-size:13px;font-weight:700;border-bottom:1px solid #e2e8f0">${stcCount}</td>
+            <td style="padding:8px 14px;font-size:13px;border-bottom:1px solid #e2e8f0"><strong>Mobily Circuits:</strong></td><td style="padding:8px 14px;font-size:13px;font-weight:700;border-bottom:1px solid #e2e8f0">${mobilyCount}</td></tr>
+        <tr><td style="padding:8px 14px;font-size:13px"><strong>Report Generated By:</strong></td><td style="padding:8px 14px;font-size:13px;font-weight:700">${currentUser ? currentUser.name : 'Admin'}</td>
+            <td style="padding:8px 14px;font-size:13px"><strong>Report Date:</strong></td><td style="padding:8px 14px;font-size:13px;font-weight:700">${today}</td></tr>
+      </table>
+      <h2 style="font-size:16px;color:#1e1333;margin:0 0 12px;font-weight:800">📋 Active Circuits Details</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:#1e1333;color:#fff">
+            <th style="padding:8px 10px;border:1px solid #374151;text-align:left">KI ID</th>
+            <th style="padding:8px 10px;border:1px solid #374151;text-align:left">Customer</th>
+            <th style="padding:8px 10px;border:1px solid #374151;text-align:left">City</th>
+            <th style="padding:8px 10px;border:1px solid #374151;text-align:left">BW</th>
+            <th style="padding:8px 10px;border:1px solid #374151;text-align:left">Status</th>
+            <th style="padding:8px 10px;border:1px solid #374151;text-align:left">Assigned To</th>
+          </tr>
+        </thead>
+        <tbody>${orderRows}</tbody>
+      </table>
+    </div>
+    <div style="background:#f8fafc;padding:16px 32px;font-size:11px;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0">
+      This report was generated automatically by the Kreativicon ISP Project Management Dashboard.<br/>
+      Confidential — For internal management use only.
+    </div>
+  </div>
+</body>
+</html>`;
+      };
+
+      const sendReport = async () => {
+        if (recipients.length === 0) {
+          setSendStatus('error');
+          setSendLog('Please add at least one recipient email address.');
+          return;
+        }
+        setSendStatus('sending');
+        setSendLog('Sending report to ' + recipients.length + ' recipient(s)...');
+
+        // EmailJS configuration
+        // Using EmailJS public service — replace with your own keys for production
+        const EMAILJS_SERVICE_ID = 'service_kreativicon';
+        const EMAILJS_TEMPLATE_ID = 'template_ki_report';
+        const EMAILJS_PUBLIC_KEY = 'YOUR_EMAILJS_PUBLIC_KEY';
+
+        const reportHTML = buildReportHTML();
+        const reportText = `Kreativicon ISP — Executive Report (${today})
+Grand Total: ${totalCount} | Active: ${activeCount} | Delivered: ${deliveredCount} | Under Installation: ${installingCount} | Cancelled: ${cancelledCount}
+LOS CLOS Pass Rate: ${activeCount > 0 ? ((closCount/activeCount)*100).toFixed(1) : 0}%
+Generated by: ${currentUser ? currentUser.name : 'Admin'}
+
+Active Circuits:
+${activeOrders.map(o => `• ${o.ki_id} | ${o.customer_name} | ${o.city} | ${o.bw} | ${o.order_status}`).join('\n')}`;
+
+        // Try to send via EmailJS
+        try {
+          if (typeof emailjs === 'undefined') throw new Error('EmailJS not loaded');
+
+          emailjs.init(EMAILJS_PUBLIC_KEY);
+
+          const sendPromises = recipients.map(to =>
+            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+              to_email: to,
+              to_name: to.split('@')[0],
+              from_name: 'Kreativicon ISP Dashboard',
+              subject: `KI Project Report — ${today}`,
+              report_html: reportHTML,
+              report_text: reportText,
+              total: totalCount,
+              active: activeCount,
+              delivered: deliveredCount,
+              installing: installingCount,
+              cancelled: cancelledCount,
+            })
+          );
+
+          await Promise.all(sendPromises);
+          setSendStatus('success');
+          setSendLog(`✅ Report successfully dispatched to: ${recipients.join(', ')}`);
+        } catch (err) {
+          // Fallback: open mailto with the report
+          const mailtoBody = encodeURIComponent(reportText);
+          const mailtoLink = `mailto:${recipients.join(',')}?subject=${encodeURIComponent('KI Project Report — ' + today)}&body=${mailtoBody}`;
+          window.open(mailtoLink, '_blank');
+          setSendStatus('success');
+          setSendLog(`📬 Your email client has been opened with the report pre-filled for: ${recipients.join(', ')}. Click Send in your email client to deliver it.`);
+        }
+      };
+
+      const copyReport = () => {
+        const text = `Kreativicon ISP — Executive Report (${today})
+Grand Total: ${totalCount} | Active: ${activeCount} | Delivered: ${deliveredCount} | Cancelled: ${cancelledCount}
+LOS CLOS: ${activeCount > 0 ? ((closCount/activeCount)*100).toFixed(1) : 0}%
+${activeOrders.map(o => `${o.ki_id} | ${o.customer_name} | ${o.city} | ${o.order_status}`).join('\n')}`;
+        navigator.clipboard.writeText(text).then(() => {
+          setSendStatus('success');
+          setSendLog('✅ Report copied to clipboard!');
+        });
+      };
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 800 }}>📧 Email Report Dispatch</h2>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                Add recipient emails, preview the report, and dispatch it instantly.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <button onClick={copyReport} style={{ padding: '0.55rem 1.2rem', background: 'linear-gradient(135deg, #6d28d9, #a855f7)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.82rem' }}>
+                📋 Copy Report
+              </button>
+              <button
+                onClick={sendReport}
+                disabled={sendStatus === 'sending'}
+                style={{ padding: '0.55rem 1.4rem', background: sendStatus === 'sending' ? '#374151' : 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: sendStatus === 'sending' ? 'not-allowed' : 'pointer', fontSize: '0.82rem', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}>
+                {sendStatus === 'sending' ? '⏳ Sending...' : '✉️ Send Report'}
+              </button>
+            </div>
+          </div>
+
+          {/* Status Banner */}
+          {sendStatus && (
+            <div style={{ padding: '0.85rem 1.2rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
+              background: sendStatus === 'error' ? 'rgba(244,63,94,0.12)' : sendStatus === 'success' ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)',
+              color: sendStatus === 'error' ? '#f43f5e' : sendStatus === 'success' ? '#10b981' : '#f59e0b',
+              border: `1px solid ${sendStatus === 'error' ? 'rgba(244,63,94,0.3)' : sendStatus === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'}`,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>{sendLog}</span>
+              <button onClick={() => setSendStatus(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: '1rem', fontWeight: 700 }}>✕</button>
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: '1.5rem', alignItems: 'start' }}>
+            {/* Left Column: Recipient Manager */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Add Recipient */}
+              <div className="glass-panel" style={{ padding: '1.25rem' }}>
+                <h3 style={{ fontSize: '0.92rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>📬 RECIPIENT LIST</h3>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <input
+                    type="email"
+                    placeholder="Enter email address..."
+                    value={emailInput}
+                    onChange={e => setEmailInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addRecipient()}
+                    style={{ flex: 1, padding: '0.55rem 0.85rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.83rem', outline: 'none' }}
+                  />
+                  <button onClick={addRecipient} style={{ padding: '0.55rem 0.9rem', background: 'linear-gradient(135deg, #a855f7, #c026d3)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
+                    + Add
+                  </button>
+                </div>
+                {recipients.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                    <div style={{ fontSize: '1.8rem', marginBottom: '0.4rem' }}>📭</div>
+                    No recipients added yet.<br/>Add emails above to get started.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    {recipients.map((email, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.55rem 0.85rem', background: 'var(--bg-primary)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, #6d28d9, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '0.75rem', fontWeight: 700 }}>
+                            {email[0].toUpperCase()}
+                          </div>
+                          <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{email}</span>
+                        </div>
+                        <button onClick={() => removeRecipient(email)} style={{ background: 'rgba(244,63,94,0.12)', border: '1px solid rgba(244,63,94,0.3)', color: '#f43f5e', borderRadius: '6px', padding: '0.2rem 0.55rem', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    <div style={{ marginTop: '0.3rem', padding: '0.5rem 0.85rem', background: 'rgba(16,185,129,0.08)', borderRadius: '8px', border: '1px solid rgba(16,185,129,0.2)', fontSize: '0.78rem', color: '#10b981', textAlign: 'center', fontWeight: 700 }}>
+                      {recipients.length} recipient{recipients.length > 1 ? 's' : ''} ready to receive report
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* KPI Quick Summary */}
+              <div className="glass-panel" style={{ padding: '1.25rem' }}>
+                <h3 style={{ fontSize: '0.92rem', fontWeight: 800, marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>📊 REPORT SNAPSHOT</h3>
+                {[
+                  { label: 'Grand Total Circuits', value: totalCount, color: '#a855f7' },
+                  { label: 'Active Circuits', value: activeCount, color: '#10b981' },
+                  { label: 'Delivered', value: deliveredCount, color: '#3b82f6' },
+                  { label: 'Under Installation', value: installingCount, color: '#f59e0b' },
+                  { label: 'Cancelled', value: cancelledCount, color: '#f43f5e' },
+                  { label: 'LOS CLOS Pass Rate', value: `${activeCount > 0 ? ((closCount/activeCount)*100).toFixed(1) : 0}%`, color: '#38bdf8' },
+                  { label: 'STC Circuits', value: stcCount, color: '#6d28d9' },
+                  { label: 'Mobily Circuits', value: mobilyCount, color: '#ec4899' },
+                ].map((kpi, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.45rem 0', borderBottom: i < 7 ? '1px solid var(--border-color)' : 'none' }}>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{kpi.label}</span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 800, color: kpi.color }}>{kpi.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right Column: Report Preview */}
+            <div className="glass-panel" style={{ padding: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-secondary)' }}>📄 REPORT PREVIEW</h3>
+                <button onClick={() => setShowPreview(p => !p)} style={{ padding: '0.3rem 0.75rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-secondary)', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>
+                  {showPreview ? 'Hide ▲' : 'Show ▼'}
+                </button>
+              </div>
+              {showPreview && (
+                <div style={{ background: '#ffffff', color: '#0f172a', borderRadius: '10px', padding: '0', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.25)' }}>
+                  {/* Email Header */}
+                  <div style={{ background: 'linear-gradient(135deg, #1e1333, #6d28d9)', padding: '20px 24px', color: '#fff' }}>
+                    <div style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '1px' }}>KREATIVICON ISP</div>
+                    <div style={{ fontSize: '11px', opacity: 0.75, marginTop: '3px' }}>Project Management Dashboard — Executive Report</div>
+                    <div style={{ marginTop: '8px', fontSize: '11px', opacity: 0.6 }}>{today} · Generated at {reportTime}</div>
+                  </div>
+                  <div style={{ padding: '20px 24px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e1333', marginBottom: '12px' }}>📊 KPI Summary</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '16px' }}>
+                      {[
+                        { label: 'Active', val: activeCount, c: '#16a34a', bg: '#f0fdf4' },
+                        { label: 'Delivered', val: deliveredCount, c: '#2563eb', bg: '#eff6ff' },
+                        { label: 'Installing', val: installingCount, c: '#d97706', bg: '#fefce8' },
+                        { label: 'Cancelled', val: cancelledCount, c: '#7c3aed', bg: '#fdf4ff' },
+                      ].map((s, i) => (
+                        <div key={i} style={{ background: s.bg, borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '20px', fontWeight: 800, color: s.c }}>{s.val}</div>
+                          <div style={{ fontSize: '9px', color: s.c, fontWeight: 700, marginTop: '2px' }}>{s.label.toUpperCase()}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e1333', marginBottom: '8px' }}>📋 Active Circuits</div>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                        <thead>
+                          <tr style={{ background: '#1e1333', color: '#fff' }}>
+                            {['KI ID', 'Customer', 'City', 'BW', 'Status', 'Assigned To'].map(h => (
+                              <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activeOrders.map((o, i) => (
+                            <tr key={o.ki_id} style={{ background: i % 2 === 0 ? '#f8fafc' : '#fff' }}>
+                              <td style={{ padding: '5px 8px', border: '1px solid #e2e8f0', fontWeight: 700, color: '#6d28d9', whiteSpace: 'nowrap' }}>{o.ki_id}</td>
+                              <td style={{ padding: '5px 8px', border: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>{(o.customer_name || '').substring(0, 22)}{o.customer_name && o.customer_name.length > 22 ? '…' : ''}</td>
+                              <td style={{ padding: '5px 8px', border: '1px solid #e2e8f0' }}>{o.city}</td>
+                              <td style={{ padding: '5px 8px', border: '1px solid #e2e8f0' }}>{o.bw}</td>
+                              <td style={{ padding: '5px 8px', border: '1px solid #e2e8f0', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.order_status}</td>
+                              <td style={{ padding: '5px 8px', border: '1px solid #e2e8f0' }}>{o.assigned_to || 'Unassigned'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div style={{ background: '#f8fafc', padding: '10px 24px', fontSize: '10px', color: '#94a3b8', textAlign: 'center', borderTop: '1px solid #e2e8f0' }}>
+                    Generated automatically · Kreativicon ISP Dashboard · Confidential
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1434,29 +1785,19 @@
 
             {/* ── EMAIL REPORTS TAB ── */}
             {activeTab === 'email' && !isEngineer && (
-              <div className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                  <div>
-                    <h2 style={{ fontSize: '1.3rem', fontWeight: 800 }}>📧 Management Automated Email Reporting</h2>
-                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                      Generate and dispatch automated daily/weekly KPI summary reports to executive stakeholders.
-                    </p>
-                  </div>
-                  <button onClick={() => alert('Executive Summary Email report dispatched to management!')} style={{ padding: '0.6rem 1.4rem', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}>
-                    ✉️ Dispatch Report Now
-                  </button>
-                </div>
-                <div style={{ background: '#ffffff', color: '#0f172a', padding: '1.25rem', borderRadius: '8px', fontSize: '0.85rem' }}>
-                  <h3 style={{ fontSize: '1rem', color: '#1e3a8a', marginBottom: '0.5rem', fontWeight: 800 }}>Kreativicon ISP — Executive Summary Report</h3>
-                  <p>Daily operational metrics summary for management review:</p>
-                  <ul style={{ margin: '0.5rem 0', paddingLeft: '1.2rem' }}>
-                    <li><strong>Total Active Circuits:</strong> {activeCount}</li>
-                    <li><strong>LOS CLOS Pass Rate:</strong> {activeCount > 0 ? ((closCount/activeCount)*100).toFixed(1) : 0}%</li>
-                    <li><strong>Under Installation:</strong> {installingCount}</li>
-                    <li><strong>Delivered:</strong> {deliveredCount}</li>
-                  </ul>
-                </div>
-              </div>
+              <EmailReportTab
+                orders={orders}
+                activeOrders={activeOrders}
+                totalCount={totalCount}
+                activeCount={activeCount}
+                cancelledCount={cancelledCount}
+                closCount={closCount}
+                installingCount={installingCount}
+                deliveredCount={deliveredCount}
+                stcCount={stcCount}
+                mobilyCount={mobilyCount}
+                currentUser={currentUser}
+              />
             )}
 
             {/* ── AUDIT LOG TAB (SUPER ADMIN ONLY) ── */}
