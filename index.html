@@ -592,20 +592,39 @@ Generated automatically by Kreativicon ISP Project Management Dashboard
 Confidential — Internal Management Use Only`;
       };
 
-      const sendOutlookWeb = () => {
+      const sendOutlookWeb = async () => {
         if (recipients.length === 0) {
           setSendStatus('error');
           setSendLog('Please add at least one recipient email address.');
           return;
         }
+        
+        // 1. Copy Rich HTML Table to Clipboard
+        const html = buildReportHTML();
+        const text = buildReportFormattedText();
+        let copySuccess = false;
+        try {
+          const blobHtml = new Blob([html], { type: 'text/html' });
+          const blobText = new Blob([text], { type: 'text/plain' });
+          const item = new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText });
+          await navigator.clipboard.write([item]);
+          copySuccess = true;
+        } catch (e) {
+          try {
+            await navigator.clipboard.writeText(text);
+          } catch(err) {}
+        }
+
+        // 2. Open Outlook Web Compose
         const subject = `KI Project Executive Report — ${today}`;
-        const reportText = buildReportFormattedText();
         const toStr = recipients.join(';');
-        const outlookWebUrl = `https://outlook.cloud.microsoft/mail/deeplink/compose?to=${encodeURIComponent(toStr)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(reportText)}`;
+        const outlookWebUrl = `https://outlook.cloud.microsoft/mail/deeplink/compose?to=${encodeURIComponent(toStr)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
         window.open(outlookWebUrl, '_blank');
 
         setSendStatus('success');
-        setSendLog(`📬 Opened Outlook Web Compose window for hassan@kreativicon.com`);
+        setSendLog(copySuccess 
+          ? `✨ Outlook Web opened & HTML Report copied to clipboard! Click inside email body and press Ctrl+V to paste the full styled report.`
+          : `📬 Opened Outlook Web Compose window for hassan@kreativicon.com`);
       };
 
       const sendMailto = () => {
@@ -632,7 +651,7 @@ Confidential — Internal Management Use Only`;
           const item = new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText });
           navigator.clipboard.write([item]).then(() => {
             setSendStatus('success');
-            setSendLog('✨ Copied Rich HTML Email to clipboard! Open Outlook and press Ctrl+V in email body to paste full styled report.');
+            setSendLog('✨ Copied Rich HTML Email Table to clipboard! Open Outlook and press Ctrl+V in email body to paste full styled report.');
           });
         } catch (e) {
           navigator.clipboard.writeText(text).then(() => {
