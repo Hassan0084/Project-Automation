@@ -847,6 +847,303 @@ Confidential — Internal Management Use Only`;
       );
     }
 
+    // ── USER MANAGEMENT TAB COMPONENT ──
+    function UserManagementTab({ accounts, setAccounts, currentUser, orders }) {
+      const [userSearch, setUserSearch] = React.useState('');
+      const [roleFilter, setRoleFilter] = React.useState('All');
+      const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
+      const [editingUser, setEditingUser] = React.useState(null);
+
+      // Form states
+      const [formData, setFormData] = React.useState({
+        name: '',
+        role: 'Engineer',
+        email: '',
+        pass: 'user123'
+      });
+
+      const handleAddSubmit = (e) => {
+        e.preventDefault();
+        if (!formData.name || !formData.email || !formData.pass) {
+          alert('Please fill out Name, Email, and Password.');
+          return;
+        }
+        const exists = accounts.find(a => a.email.toLowerCase().trim() === formData.email.toLowerCase().trim());
+        if (exists) {
+          alert(`User with email "${formData.email}" already exists.`);
+          return;
+        }
+        const newUserObj = {
+          id: 'usr-' + Date.now(),
+          name: formData.name.trim(),
+          role: formData.role,
+          email: formData.email.trim(),
+          pass: formData.pass.trim()
+        };
+        setAccounts(prev => [...prev, newUserObj]);
+        setIsAddModalOpen(false);
+        setFormData({ name: '', role: 'Engineer', email: '', pass: 'user123' });
+        alert(`✅ User Account created successfully for ${newUserObj.name} (${newUserObj.role})!`);
+      };
+
+      const handleEditSubmit = (e) => {
+        e.preventDefault();
+        if (!editingUser.name || !editingUser.email || !editingUser.pass) {
+          alert('Please fill out Name, Email, and Password.');
+          return;
+        }
+        setAccounts(prev => prev.map(a => a.id === editingUser.id ? editingUser : a));
+        alert(`✅ User Account "${editingUser.name}" updated successfully!`);
+        setEditingUser(null);
+      };
+
+      const handleDeleteUser = (userToDelete) => {
+        if (userToDelete.email.toLowerCase() === currentUser.email.toLowerCase()) {
+          alert('⚠️ Cannot delete the currently logged-in account.');
+          return;
+        }
+        if (window.confirm(`Are you sure you want to delete user account "${userToDelete.name}" (${userToDelete.email})?`)) {
+          setAccounts(prev => prev.filter(a => a.id !== userToDelete.id));
+          alert(`🗑️ User account "${userToDelete.name}" has been deleted.`);
+        }
+      };
+
+      const filteredUsers = accounts.filter(acc => {
+        const matchesSearch = !userSearch || 
+          acc.name.toLowerCase().includes(userSearch.toLowerCase()) || 
+          acc.email.toLowerCase().includes(userSearch.toLowerCase());
+        const matchesRole = roleFilter === 'All' || acc.role === roleFilter;
+        return matchesSearch && matchesRole;
+      });
+
+      const totalUsers = accounts.length;
+      const adminCount = accounts.filter(a => a.role === 'Super Admin').length;
+      const engCount = accounts.filter(a => a.role === 'Engineer').length;
+      const viewerCount = accounts.filter(a => a.role === 'Viewer').length;
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Top Action & Header Bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 800 }}>👥 User Account Management</h2>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                Add, edit, change passwords, and manage access permissions for all system users.
+              </p>
+            </div>
+            <button
+              onClick={() => { setFormData({ name: '', role: 'Engineer', email: '', pass: 'user123' }); setIsAddModalOpen(true); }}
+              style={{ padding: '0.6rem 1.3rem', background: 'linear-gradient(135deg, #a855f7 0%, #d946ef 100%)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '0.85rem', cursor: 'pointer', boxShadow: '0 4px 14px rgba(168,85,247,0.35)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span>➕</span> Add New User
+            </button>
+          </div>
+
+          {/* KPI Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+            <div className="glass-card" style={{ padding: '1rem 1.25rem', borderLeft: '4px solid #a855f7' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Total Accounts</span>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, margin: '0.2rem 0', color: '#a855f7' }}>{totalUsers}</div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Registered system users</span>
+            </div>
+            <div className="glass-card" style={{ padding: '1rem 1.25rem', borderLeft: '4px solid #d946ef' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Super Admins</span>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, margin: '0.2rem 0', color: '#d946ef' }}>{adminCount}</div>
+              <span style={{ fontSize: '0.75rem', color: '#d946ef' }}>Full control access</span>
+            </div>
+            <div className="glass-card" style={{ padding: '1rem 1.25rem', borderLeft: '4px solid #10b981' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Field Engineers</span>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, margin: '0.2rem 0', color: '#10b981' }}>{engCount}</div>
+              <span style={{ fontSize: '0.75rem', color: '#10b981' }}>Assigned project scope</span>
+            </div>
+            <div className="glass-card" style={{ padding: '1rem 1.25rem', borderLeft: '4px solid #38bdf8' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Viewers</span>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, margin: '0.2rem 0', color: '#38bdf8' }}>{viewerCount}</div>
+              <span style={{ fontSize: '0.75rem', color: '#38bdf8' }}>Read-only access</span>
+            </div>
+          </div>
+
+          {/* Filters & Search */}
+          <div className="glass-panel" style={{ padding: '1rem 1.25rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', flex: 1, minWidth: '280px' }}>
+              <input
+                type="text"
+                placeholder="🔍 Search users by name or email..."
+                value={userSearch}
+                onChange={e => setUserSearch(e.target.value)}
+                style={{ flex: 1, padding: '0.5rem 0.85rem', borderRadius: '8px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', fontSize: '0.83rem', outline: 'none' }}
+              />
+              <select
+                value={roleFilter}
+                onChange={e => setRoleFilter(e.target.value)}
+                style={{ padding: '0.5rem 0.85rem', borderRadius: '8px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', fontSize: '0.83rem', outline: 'none', fontWeight: 700 }}>
+                <option value="All">All Roles</option>
+                <option value="Super Admin">Super Admin</option>
+                <option value="Engineer">Field Engineer</option>
+                <option value="Viewer">Viewer</option>
+              </select>
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+              Showing {filteredUsers.length} of {totalUsers} users
+            </div>
+          </div>
+
+          {/* Users Table */}
+          <div className="glass-panel table-wrap">
+            <table className="custom-table" style={{ minWidth: '900px' }}>
+              <thead>
+                <tr>
+                  <th style={{ minWidth: '200px' }}>User Name</th>
+                  <th style={{ minWidth: '220px' }}>Login Email (Username)</th>
+                  <th style={{ minWidth: '150px' }}>Role / Permission</th>
+                  <th style={{ minWidth: '130px' }}>Password</th>
+                  <th style={{ minWidth: '130px' }}>Assigned Circuits</th>
+                  <th style={{ minWidth: '130px', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUsers.map(acc => {
+                  const assignedCircuitsCount = orders.filter(o => !o.is_cancelled && o.assigned_to === acc.name).length;
+                  const isSelf = acc.email.toLowerCase() === currentUser.email.toLowerCase();
+
+                  return (
+                    <tr key={acc.id}>
+                      <td style={{ fontWeight: 800 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: acc.role === 'Super Admin' ? 'rgba(217,70,239,0.2)' : acc.role === 'Engineer' ? 'rgba(16,185,129,0.2)' : 'rgba(56,189,248,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>
+                            {acc.role === 'Super Admin' ? '👑' : acc.role === 'Engineer' ? '👷' : '👁️'}
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--text-primary)', fontSize: '0.88rem' }}>{acc.name}</span>
+                            {isSelf && <span style={{ marginLeft: '6px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(56,189,248,0.2)', color: '#38bdf8', fontSize: '0.68rem', fontWeight: 800 }}>YOU</span>}
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ color: 'var(--text-secondary)', fontSize: '0.83rem' }}>{acc.email}</td>
+                      <td>
+                        <span className={`badge ${acc.role === 'Super Admin' ? 'badge-twal' : acc.role === 'Engineer' ? 'badge-clos' : 'badge-activation'}`}>
+                          {acc.role}
+                        </span>
+                      </td>
+                      <td style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        <span style={{ background: 'var(--bg-primary)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
+                          {acc.pass || '••••••••'}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                        {acc.role === 'Engineer' ? `${assignedCircuitsCount} circuits` : '—'}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                          <button
+                            onClick={() => setEditingUser({ ...acc })}
+                            style={{ padding: '0.3rem 0.7rem', background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', color: 'var(--accent-blue)', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer' }}>
+                            ✏️ Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(acc)}
+                            disabled={isSelf}
+                            style={{ padding: '0.3rem 0.7rem', background: isSelf ? 'rgba(100,116,139,0.1)' : 'rgba(244,63,94,0.15)', border: `1px solid ${isSelf ? 'rgba(100,116,139,0.2)' : 'rgba(244,63,94,0.3)'}`, color: isSelf ? '#64748b' : '#f43f5e', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: isSelf ? 'not-allowed' : 'pointer' }}>
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Add User Modal */}
+          {isAddModalOpen && (
+            <div onClick={(e) => e.target === e.currentTarget && setIsAddModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
+              <div className="glass-panel" style={{ width: '100%', maxWidth: '520px', padding: '1.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span>👤</span> Add New System User
+                  </h3>
+                  <button onClick={() => setIsAddModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.4rem', cursor: 'pointer' }}>✕</button>
+                </div>
+                <form onSubmit={handleAddSubmit}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.85rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-secondary)' }}>Full Name *</label>
+                      <input required type="text" placeholder="e.g. Tariq Al-Mansoor" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-secondary)' }}>Role & Permission Level *</label>
+                      <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}>
+                        <option value="Engineer">Field Engineer (Assigned Projects Scope)</option>
+                        <option value="Viewer">Viewer (Read-Only Scope)</option>
+                        <option value="Super Admin">Super Admin (Full Control)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-secondary)' }}>Email Address (Login Username) *</label>
+                      <input required type="email" placeholder="e.g. tariq@kreativicon.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-secondary)' }}>Login Password *</label>
+                      <input required type="text" placeholder="Set password" value={formData.pass} onChange={(e) => setFormData({ ...formData, pass: e.target.value })} style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
+                    </div>
+                  </div>
+                  <button type="submit" style={{ marginTop: '1.5rem', width: '100%', padding: '0.75rem', background: 'linear-gradient(135deg, #a855f7 0%, #d946ef 100%)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer', boxShadow: '0 4px 14px rgba(168,85,247,0.35)' }}>
+                    👤 Create & Activate User
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Edit User Modal */}
+          {editingUser && (
+            <div onClick={(e) => e.target === e.currentTarget && setEditingUser(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
+              <div className="glass-panel" style={{ width: '100%', maxWidth: '520px', padding: '1.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span>✏️</span> Edit User Account: {editingUser.name}
+                  </h3>
+                  <button onClick={() => setEditingUser(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.4rem', cursor: 'pointer' }}>✕</button>
+                </div>
+                <form onSubmit={handleEditSubmit}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.85rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-secondary)' }}>Full Name *</label>
+                      <input required type="text" value={editingUser.name} onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })} style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-secondary)' }}>Role & Permission Level *</label>
+                      <select value={editingUser.role} onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })} style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}>
+                        <option value="Engineer">Field Engineer (Assigned Projects Scope)</option>
+                        <option value="Viewer">Viewer (Read-Only Scope)</option>
+                        <option value="Super Admin">Super Admin (Full Control)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-secondary)' }}>Email Address (Login Username) *</label>
+                      <input required type="email" value={editingUser.email} onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })} style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.3rem', color: 'var(--text-secondary)' }}>Login Password *</label>
+                      <input required type="text" value={editingUser.pass} onChange={(e) => setEditingUser({ ...editingUser, pass: e.target.value })} style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
+                    <button type="button" onClick={() => setEditingUser(null)} style={{ flex: 1, padding: '0.7rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', color: 'var(--text-secondary)', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
+                      Cancel
+                    </button>
+                    <button type="submit" style={{ flex: 1, padding: '0.7rem', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}>
+                      💾 Save Changes
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     // ── MAIN APP COMPONENT ──
     function App() {
       // Load accounts from LocalStorage or default
@@ -1258,13 +1555,13 @@ Confidential — Internal Management Use Only`;
                   </div>
                 </div>
 
-                {/* SUPER ADMIN CREATE USER BUTTON */}
+                {/* SUPER ADMIN USER MANAGEMENT BUTTON */}
                 {isSuperAdmin && (
                   <button
-                    onClick={() => setIsCreateUserModalOpen(true)}
+                    onClick={() => setActiveTab('users')}
                     style={{
                       padding: '0.45rem 0.9rem',
-                      background: 'linear-gradient(135deg, #a855f7 0%, #d946ef 100%)',
+                      background: activeTab === 'users' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #a855f7 0%, #d946ef 100%)',
                       color: '#fff',
                       border: 'none',
                       borderRadius: '8px',
@@ -1277,7 +1574,7 @@ Confidential — Internal Management Use Only`;
                       gap: '0.4rem'
                     }}
                   >
-                    <span>👤</span> Create User
+                    <span>👥</span> User Management
                   </button>
                 )}
 
@@ -1304,6 +1601,7 @@ Confidential — Internal Management Use Only`;
                 { id: 'orders', label: `Active Orders (${activeCount})`, icon: '📦', show: !isEngineer },
                 { id: 'cancelled', label: `Cancelled (${cancelledCount})`, icon: '🚫', show: !isEngineer },
                 { id: 'engineers', label: isEngineer ? 'My Assigned Workload' : 'Engineer Workload', icon: '👷', show: true },
+                { id: 'users', label: `User Management (${accounts.length})`, icon: '👥', show: isSuperAdmin },
                 { id: 'excel', label: 'Excel Import/Sync', icon: '📑', show: !isEngineer },
                 { id: 'email', label: 'Email Reports', icon: '📧', show: !isEngineer },
                 { id: 'audit', label: 'Audit Trail', icon: '📜', show: isSuperAdmin }
@@ -1948,9 +2246,18 @@ Confidential — Internal Management Use Only`;
                       </div>
                     ))}
                   </div>
-                </div>
               );
             })()}
+
+            {/* ── USER MANAGEMENT TAB (SUPER ADMIN ONLY) ── */}
+            {activeTab === 'users' && isSuperAdmin && (
+              <UserManagementTab
+                accounts={accounts}
+                setAccounts={setAccounts}
+                currentUser={currentUser}
+                orders={orders}
+              />
+            )}
 
             {/* ── EXCEL TAB ── */}
             {activeTab === 'excel' && !isEngineer && (
