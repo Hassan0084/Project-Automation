@@ -64,6 +64,10 @@
     .glass-panel { background: var(--bg-card); backdrop-filter: blur(12px); border: var(--glass-border); box-shadow: 0 4px 20px rgba(0,0,0,0.15); border-radius: 12px; }
     .glass-card { background: var(--bg-card); backdrop-filter: blur(10px); border: var(--glass-border); border-radius: 12px; transition: all 0.2s; }
     .glass-card:hover { background: var(--bg-card-hover); transform: translateY(-2px); box-shadow: var(--shadow-glow); }
+    .glass-card-interactive { cursor: pointer; user-select: none; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+    .glass-card-interactive:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 12px 25px -5px rgba(168, 85, 247, 0.35); filter: brightness(1.15); }
+    .glass-card-interactive:active { transform: translateY(-1px) scale(0.99); }
+    .glass-card-active { outline: 2px solid var(--accent-purple); outline-offset: 2px; box-shadow: 0 0 20px rgba(192, 38, 211, 0.4); }
 
     .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; }
     .badge-clos { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
@@ -883,6 +887,7 @@ Confidential — Internal Management Use Only`;
       const [activeTab, setActiveTab] = React.useState('dashboard');
       const [darkMode, setDarkMode] = React.useState(true);
       const [search, setSearch] = React.useState('');
+      const [cardFilter, setCardFilter] = React.useState(null);
 
       // Modals state
       const [selectedOrder, setSelectedOrder] = React.useState(null);
@@ -1377,40 +1382,88 @@ Confidential — Internal Management Use Only`;
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                   
-                  {/* KPI Cards Grid */}
+                  {/* KPI Cards Grid (Clickable Filters & Tab Navigation) */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-                    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid var(--accent-blue)' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Total Orders</span>
+                    <div 
+                      className={`glass-card glass-card-interactive ${!cardFilter ? 'glass-card-active' : ''}`} 
+                      onClick={() => { setCardFilter(null); setActiveTab('orders'); }}
+                      style={{ padding: '1.25rem', borderLeft: '4px solid var(--accent-blue)' }}
+                      title="Click to view all circuits in database"
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Total Orders</span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--accent-blue)', fontWeight: 700 }}>VIEW ➔</span>
+                      </div>
                       <div style={{ fontSize: '2rem', fontWeight: 800, margin: '0.2rem 0', color: 'var(--accent-blue)' }}>{totalCount}</div>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>All circuits in database</span>
                     </div>
 
-                    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid #10b981' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Active Projects</span>
+                    <div 
+                      className={`glass-card glass-card-interactive ${cardFilter === 'active' ? 'glass-card-active' : ''}`} 
+                      onClick={() => { setCardFilter(null); setActiveTab('orders'); }}
+                      style={{ padding: '1.25rem', borderLeft: '4px solid #10b981' }}
+                      title="Click to view active projects"
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Active Projects</span>
+                        <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700 }}>VIEW ➔</span>
+                      </div>
                       <div style={{ fontSize: '2rem', fontWeight: 800, margin: '0.2rem 0', color: '#10b981' }}>{activeCount}</div>
                       <span style={{ fontSize: '0.75rem', color: '#10b981' }}>{totalCount > 0 ? ((activeCount/totalCount)*100).toFixed(0) : 0}% Active Rate</span>
                     </div>
 
-                    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid #f43f5e' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Cancelled</span>
+                    <div 
+                      className={`glass-card glass-card-interactive ${cardFilter === 'cancelled' ? 'glass-card-active' : ''}`} 
+                      onClick={() => { setCardFilter('cancelled'); setActiveTab('cancelled'); }}
+                      style={{ padding: '1.25rem', borderLeft: '4px solid #f43f5e' }}
+                      title="Click to view cancelled circuits"
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Cancelled</span>
+                        <span style={{ fontSize: '0.7rem', color: '#f43f5e', fontWeight: 700 }}>VIEW ➔</span>
+                      </div>
                       <div style={{ fontSize: '2rem', fontWeight: 800, margin: '0.2rem 0', color: '#f43f5e' }}>{cancelledCount}</div>
                       <span style={{ fontSize: '0.75rem', color: '#f43f5e' }}>{totalCount > 0 ? ((cancelledCount/totalCount)*100).toFixed(0) : 0}% Cancelled Rate</span>
                     </div>
 
-                    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid #38bdf8' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>LOS CLOS Completed</span>
+                    <div 
+                      className={`glass-card glass-card-interactive ${cardFilter === 'clos' ? 'glass-card-active' : ''}`} 
+                      onClick={() => { setCardFilter('clos'); setActiveTab('orders'); }}
+                      style={{ padding: '1.25rem', borderLeft: '4px solid #38bdf8' }}
+                      title="Click to filter orders by LOS CLOS status"
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>LOS CLOS Completed</span>
+                        <span style={{ fontSize: '0.7rem', color: '#38bdf8', fontWeight: 700 }}>FILTER ➔</span>
+                      </div>
                       <div style={{ fontSize: '2rem', fontWeight: 800, margin: '0.2rem 0', color: '#38bdf8' }}>{closCount}</div>
                       <span style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{activeCount > 0 ? ((closCount/activeCount)*100).toFixed(0) : 0}% LOS Pass Rate</span>
                     </div>
 
-                    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid #f59e0b' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>MW Installing</span>
+                    <div 
+                      className={`glass-card glass-card-interactive ${cardFilter === 'installing' ? 'glass-card-active' : ''}`} 
+                      onClick={() => { setCardFilter('installing'); setActiveTab('orders'); }}
+                      style={{ padding: '1.25rem', borderLeft: '4px solid #f59e0b' }}
+                      title="Click to filter orders under MW Installation"
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>MW Installing</span>
+                        <span style={{ fontSize: '0.7rem', color: '#f59e0b', fontWeight: 700 }}>FILTER ➔</span>
+                      </div>
                       <div style={{ fontSize: '2rem', fontWeight: 800, margin: '0.2rem 0', color: '#f59e0b' }}>{installingCount}</div>
                       <span style={{ fontSize: '0.75rem', color: '#f59e0b' }}>In field deployment</span>
                     </div>
 
-                    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: '4px solid #3b82f6' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Delivered Circuits</span>
+                    <div 
+                      className={`glass-card glass-card-interactive ${cardFilter === 'delivered' ? 'glass-card-active' : ''}`} 
+                      onClick={() => { setCardFilter('delivered'); setActiveTab('orders'); }}
+                      style={{ padding: '1.25rem', borderLeft: '4px solid #3b82f6' }}
+                      title="Click to filter delivered circuits"
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Delivered Circuits</span>
+                        <span style={{ fontSize: '0.7rem', color: '#3b82f6', fontWeight: 700 }}>FILTER ➔</span>
+                      </div>
                       <div style={{ fontSize: '2rem', fontWeight: 800, margin: '0.2rem 0', color: '#3b82f6' }}>{deliveredCount}</div>
                       <span style={{ fontSize: '0.75rem', color: '#3b82f6' }}>Handed over to client</span>
                     </div>
@@ -1579,7 +1632,21 @@ Confidential — Internal Management Use Only`;
             {activeTab === 'orders' && !isEngineer && (() => {
               const filtered = activeOrders.filter(o => {
                 const q = search.toLowerCase();
-                return !q || o.ki_id.toLowerCase().includes(q) || o.customer_name.toLowerCase().includes(q) || (o.circuit_id || '').toLowerCase().includes(q) || (o.city || '').toLowerCase().includes(q);
+                const matchesSearch = !q || 
+                  o.ki_id.toLowerCase().includes(q) || 
+                  o.customer_name.toLowerCase().includes(q) || 
+                  (o.circuit_id || '').toLowerCase().includes(q) || 
+                  (o.city || '').toLowerCase().includes(q) ||
+                  (o.order_status || '').toLowerCase().includes(q) ||
+                  (o.assigned_to || '').toLowerCase().includes(q);
+
+                if (!matchesSearch) return false;
+
+                if (cardFilter === 'clos') return o.los_status === 'CLOS';
+                if (cardFilter === 'installing') return (o.order_status || '').includes('Installation');
+                if (cardFilter === 'delivered') return (o.order_status || '').toLowerCase().includes('delivered') || (o.remarks || '').toLowerCase().includes('delivered');
+
+                return true;
               });
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -1594,6 +1661,49 @@ Confidential — Internal Management Use Only`;
                           <span>➕</span> Add New Connection
                         </button>
                       </div>
+                    )}
+                  </div>
+
+                  {/* Quick Filter Pills Bar */}
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', background: 'var(--bg-card)', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginRight: '0.2rem' }}>🔍 Quick Filters:</span>
+                    
+                    <button 
+                      onClick={() => setCardFilter(null)}
+                      style={{ padding: '0.35rem 0.85rem', borderRadius: '20px', border: '1px solid var(--border-color)', background: !cardFilter ? 'linear-gradient(135deg, #a855f7, #c026d3)' : 'var(--bg-primary)', color: !cardFilter ? '#fff' : 'var(--text-primary)', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}>
+                      All Active ({activeCount})
+                    </button>
+
+                    <button 
+                      onClick={() => setCardFilter('clos')}
+                      style={{ padding: '0.35rem 0.85rem', borderRadius: '20px', border: '1px solid rgba(56, 189, 248, 0.4)', background: cardFilter === 'clos' ? '#38bdf8' : 'rgba(56, 189, 248, 0.1)', color: cardFilter === 'clos' ? '#fff' : '#38bdf8', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}>
+                      LOS CLOS Completed ({closCount})
+                    </button>
+
+                    <button 
+                      onClick={() => setCardFilter('installing')}
+                      style={{ padding: '0.35rem 0.85rem', borderRadius: '20px', border: '1px solid rgba(245, 158, 11, 0.4)', background: cardFilter === 'installing' ? '#f59e0b' : 'rgba(245, 158, 11, 0.1)', color: cardFilter === 'installing' ? '#fff' : '#f59e0b', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}>
+                      MW Installing ({installingCount})
+                    </button>
+
+                    <button 
+                      onClick={() => setCardFilter('delivered')}
+                      style={{ padding: '0.35rem 0.85rem', borderRadius: '20px', border: '1px solid rgba(59, 130, 246, 0.4)', background: cardFilter === 'delivered' ? '#3b82f6' : 'rgba(59, 130, 246, 0.1)', color: cardFilter === 'delivered' ? '#fff' : '#3b82f6', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}>
+                      Delivered Circuits ({deliveredCount})
+                    </button>
+
+                    <button 
+                      onClick={() => setActiveTab('cancelled')}
+                      style={{ padding: '0.35rem 0.85rem', borderRadius: '20px', border: '1px solid rgba(244, 63, 94, 0.4)', background: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}>
+                      Cancelled ({cancelledCount}) ➔
+                    </button>
+
+                    {cardFilter && (
+                      <button 
+                        onClick={() => setCardFilter(null)}
+                        style={{ padding: '0.35rem 0.75rem', borderRadius: '20px', background: 'rgba(244, 63, 94, 0.15)', border: '1px solid rgba(244, 63, 94, 0.3)', color: '#f43f5e', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', marginLeft: 'auto' }}>
+                        ✕ Clear Filter
+                      </button>
                     )}
                   </div>
                   <div className="glass-panel table-wrap">
